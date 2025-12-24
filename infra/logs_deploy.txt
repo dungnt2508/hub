@@ -1,0 +1,73 @@
+1. start service dùng chung
+
+G:\project python\hub>cd infra
+
+G:\project python\hub\infra>docker-compose -f docker-compose.infra.yml up -d
+
+--
+
+2. check status
+pgadmin : http://localhost:5050/browser/ -> ok
+redis insight : http://localhost:8389/ -> ok
+
+postgres db :   
+    host : hub_postgres
+    port : 5432
+    db : bot_db 
+    username : bot_user
+    pw : bot_pw
+-> connect ok
+
+
+postgres db :
+    host : hub_postgres
+    port : 5432
+    db : catalog_db
+    username : catalog_user
+    pw : catalog_pw
+-> connect ok
+
+
+3. start service catalog (gsnake1102)
+
+
+-- run backend : G:\project python\hub\catalog>docker-compose -f docker-compose.yml up -d
+-- run frontend :
+G:\project python\hub\catalog\packages\shared-types>npm run install
+G:\project python\hub\catalog\packages\shared-types>npm run build
+G:\project python\hub\catalog\frontend>npm run dev
+
+
+4. start service bot (multi-tenant bot service)
+
+-- bot service sử dụng database và redis từ infra (shared services)
+
+redis :
+    host : hub_redis
+    port : 6379
+-> connect ok
+
+
+-- run database migrations (nếu cần)
+G:\project python\hub\bot>docker-compose exec backend alembic upgrade head
+# Hoặc chạy migrations từ host:
+# cd bot
+# alembic upgrade head
+
+-- run bot service
+G:\project python\hub\bot>docker-compose -f docker-compose.yml up -d
+
+-- check status
+bot service API : http://localhost:8386/health -> ok
+bot service docs : http://localhost:8386/docs -> ok
+embed.js script : http://localhost:8386/embed.js -> ok
+
+-- test endpoints
+POST http://localhost:8386/embed/init
+POST http://localhost:8386/bot/message
+GET http://localhost:8386/embed.js
+
+-- verify network connection
+# Bot service phải connect được vào network hub_shared_net từ infra
+docker network inspect hub_shared_net
+# Kiểm tra container hub_backend có trong network không

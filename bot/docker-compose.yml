@@ -1,0 +1,254 @@
+version: '3.8'
+
+# ============================================
+# Bot Service - Docker Compose
+# ============================================
+# Cách sử dụng:
+#   LOCAL (dùng chung infra):
+#     - Đảm bảo infra đã chạy: cd ../infra && docker-compose -f docker-compose.infra.yml up -d
+#     - Chạy bot (migration sẽ tự động chạy khi container start):
+#       docker-compose up -d
+#     - Service sẽ tự động connect vào network shared_net từ infra
+#     - Migration service vẫn có thể dùng riêng nếu cần:
+#       docker-compose --profile migrate up migrate
+#
+#   PRODUCTION (tách riêng):
+#     - Uncomment các service postgres, redis bên dưới
+#     - Comment phần external network
+#     - Chạy bot (migration tự động): docker-compose up -d
+#     - Hoặc chạy migration riêng: docker-compose --profile migrate up migrate
+# ============================================
+
+services:
+  # ============================================
+  # Infrastructure Services (chỉ dùng khi PRODUCTION)
+  # ============================================
+  # Uncomment các service dưới đây nếu muốn tách riêng infra cho production
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: bot_postgres
+  #   environment:
+  #     POSTGRES_USER: bot_user
+  #     POSTGRES_PASSWORD: bot_password
+  #     POSTGRES_DB: bot_db
+  #     TZ: Asia/Ho_Chi_Minh
+  #   command: postgres -c timezone='Asia/Ho_Chi_Minh'
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./docker_data/postgres/init:/docker-entrypoint-initdb.d
+  #   ports:
+  #     - "5432:5432"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U bot_user -d bot_db"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+  #   profiles:
+  #     - production
+
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: bot_redis
+  #   command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+  #   profiles:
+  #     - production
+
+  # Qdrant Vector Database (for knowledge engine)
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   container_name: bot_qdrant
+  #   ports:
+  #     - "6333:6333"  # HTTP API
+  #     - "6334:6334"  # gRPC
+  #   volumes:
+  #     - qdrant_data:/qdrant/storage
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+  #   ulimits:
+  #     nofile:
+  #       soft: 65536
+  #       hard: 65536
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+
+  # ============================================
+  # Database Migration Service (runs once)
+  # ============================================
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bot_migrate
+    command: alembic upgrade head
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: dev
+      TZ: Asia/Ho_Chi_Minh
+      # LOCAL: Connect vào services từ infra
+      DATABASE_URL: postgresql+asyncpg://bot_user:bot_pw@hub_postgres:5432/bot_db
+      PYTHONPATH: /app
+    networks:
+      - shared_net  # LOCAL: Dùng chung network từ infra
+      # - bot_network  # PRODUCTION: Uncomment để dùng network riêng
+    restart: "no"  # Chỉ chạy một lần
+    profiles:
+      - migrate  # Chỉ chạy khi dùng profile migrate
+
+  # ============================================
+  # Backend API Service
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bot_backend
+    # Hãy bỏ --reload khi chạy production, chỉ dùng khi dev
+    # Entrypoint script sẽ tự động chạy migration trước khi start app
+    command: ["python", "-m", "uvicorn", "backend.interface.api:app", "--host", "0.0.0.0", "--port", "8386", "--reload"]
+    volumes:
+      # Mount source code phục vụ dev hot-reload - Đảm bảo backend code ở ./backend
+      - ./backend:/app/backend
+      - ./config:/app/config
+      - ./embed.js:/app/embed.js  # Mount embed.js để hot-reload
+    ports:
+      - "8386:8386"
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: dev
+      DEBUG: "true"
+      TZ: Asia/Ho_Chi_Minh
+      # LOCAL: Connect vào services từ infra
+      # PRODUCTION: Có thể giữ nguyên hoặc đổi hostname nếu dùng service riêng
+      DATABASE_URL: postgresql+asyncpg://bot_user:bot_pw@hub_postgres:5432/bot_db
+      REDIS_URL: redis://hub_redis:6379/0
+      # QDRANT_URL: http://qdrant:6333
+      PYTHONPATH: /app
+    # depends_on:
+      # LOCAL: Sử dụng services từ infra (postgres, redis) - không cần depends_on vì dùng external network
+      # PRODUCTION: Uncomment và sử dụng services local
+      # - postgres:
+      #     condition: service_healthy
+      # - redis:
+      #     condition: service_healthy
+      # - qdrant:
+      #     condition: service_started
+    networks:
+      - shared_net  # LOCAL: Dùng chung network từ infra
+      # - bot_network  # PRODUCTION: Uncomment để dùng network riêng
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8386/health"]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # pgAdmin (Database management tool)
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: hub_pgadmin
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@bot.local
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #     PGADMIN_CONFIG_SERVER_MODE: 'False'
+  #   volumes:
+  #     - pgadmin_data:/var/lib/pgadmin
+  #   ports:
+  #     - "5050:80"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+
+  # Redis Insight (Redis management tool)
+  # redis-insight:
+  #   image: redis/redisinsight:latest
+  #   container_name: hub_redis_insight
+  #   ports:
+  #     - "8389:5540"
+  #   volumes:
+  #     - redis_insight_data:/db
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+
+  # Prometheus (Metrics collection)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: hub_prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #   volumes:
+  #     - ./docker_data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+
+  # Grafana (Metrics visualization)
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: hub_grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./docker_data/grafana/dashboards:/etc/grafana/provisioning/dashboards
+  #     - ./docker_data/grafana/datasources:/etc/grafana/provisioning/datasources
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - prometheus
+  #   networks:
+  #     - bot_network
+  #   restart: unless-stopped
+
+networks:
+  # LOCAL: Dùng chung network từ infra
+  shared_net:
+    external: true
+    name: hub_shared_net
+  
+  # PRODUCTION: Uncomment để tạo network riêng
+  # bot_network:
+  #   driver: bridge
+
+# volumes:
+  # Chỉ cần khi chạy production với infra riêng
+  # postgres_data:
+  # redis_data:
+  # redis_insight_data:
+  # qdrant_data:
+  # pgadmin_data:
+  # prometheus_data:
+  # grafana_data:

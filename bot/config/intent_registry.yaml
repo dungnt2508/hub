@@ -1,0 +1,63 @@
+# Intent Registry - Single Source of Truth
+# Format: intent_name -> domain, intent_type, required_slots, optional_slots, source_allowed
+
+intents:
+  # HR Domain - OPERATION Intents
+  - intent: query_leave_balance
+    domain: hr
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: []
+    source_allowed: [PATTERN, EMBEDDING]
+    description: "Query employee leave balance"
+    
+  - intent: create_leave_request
+    domain: hr
+    intent_type: OPERATION
+    required_slots: [start_date, end_date, reason]
+    optional_slots: [leave_type]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Create new leave request"
+    
+  - intent: approve_leave
+    domain: hr
+    intent_type: OPERATION
+    required_slots: [leave_request_id]
+    optional_slots: [comment]
+    source_allowed: [PATTERN, EMBEDDING]
+    description: "Approve leave request (manager only)"
+    
+  # HR Domain - KNOWLEDGE Intents
+  - intent: knowledge_policy_leave
+    domain: hr
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [topic]
+    source_allowed: [EMBEDDING, LLM]
+    description: "Query leave policy information"
+
+  # Catalog Domain - KNOWLEDGE Intents
+  - intent: catalog.search
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_type, feature, tag]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Search for products/workflows in catalog"
+    
+  - intent: catalog.recommend
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_type, feature, tag]
+    source_allowed: [EMBEDDING, LLM]
+    description: "Get product recommendations based on needs"
+    
+  - intent: catalog.info
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Get information about specific product"
+

@@ -1,0 +1,186 @@
+Bạn là senior backend architect triển khai multi-tenant bot service (B2B SaaS).
+Mục tiêu: một bot engine dùng chung, tích hợp đa kênh (web embed, Telegram, Microsoft Teams).
+Ưu tiên: bảo mật biên dịch vụ, isolation tenant, mở rộng, không ràng buộc framework khách.
+
+REQUIREMENTS (BẮT BUỘC)
+1. Multi-tenant core
+
+Tenant = customer (site / org)
+
+Mọi request phải resolve được:
+
+tenant_id
+
+channel
+
+user_key
+
+Không dùng user login mặc định
+
+2. Channel adapters
+
+Triển khai adapter riêng, core logic dùng chung.
+
+Web Embed
+
+Embed script public
+
+Không lộ API key
+
+Runtime auth bằng JWT ngắn hạn
+
+Bind token với site_id + origin
+
+Telegram
+
+Webhook-based
+
+Verify request từ Telegram
+
+Dùng telegram_user_id làm identity
+
+Microsoft Teams
+
+Bot Framework
+
+Verify JWT Microsoft
+
+Identity = tenantId + aadObjectId
+
+3. Identity model
+
+Không lưu PII mặc định
+
+Dùng user_key kỹ thuật
+
+Cho phép map identity thật sau (progressive identity)
+
+4. Authentication & Security
+
+Không auth end-user
+
+Auth service-level bắt buộc
+
+Rate limit theo tenant + user_key
+
+Quota theo plan
+
+Chống cross-site embed
+
+5. Web embed flow
+
+Script load → /embed/init
+
+Validate origin
+
+Issue JWT (3–5 phút)
+
+Chat API yêu cầu JWT
+
+6. Conversation & State
+
+Conversation key = (tenant_id, channel, user_key)
+
+Stateless API, state lưu backend
+
+Hỗ trợ history window
+
+DELIVERABLES
+
+Agent phải cung cấp:
+
+High-level architecture
+
+Component diagram
+
+Data flow
+
+Auth flows
+
+Web embed
+
+Telegram
+
+Teams
+
+Data models
+
+Tenant
+
+Bot
+
+Channel config
+
+Conversation
+
+Message
+
+API spec (pseudo)
+
+/embed/init
+
+/bot/message
+
+Webhook endpoints
+
+Security checklist
+
+Threats
+
+Mitigations
+
+Scaling strategy
+
+Stateless workers
+
+Rate limit
+
+Horizontal scale
+
+CONSTRAINTS
+
+Không dùng cookie cross-site
+
+Không expose secret ra frontend
+
+Không couple core với channel
+
+Không assume platform-specific behavior
+
+Không UX discussion
+
+OUTPUT FORMAT
+
+Markdown
+
+Sectioned
+
+Code snippets khi cần
+
+Không prose lan man
+
+NON-GOALS
+
+Không bàn UI
+
+Không bàn marketing
+
+Không bàn pricing
+
+SUCCESS CRITERIA
+
+Thiết kế có thể:
+
+Gắn vào bất kỳ website
+
+Chạy trên Telegram / Teams
+
+Bảo vệ được tenant
+
+Không cần user login
+
+Mở rộng đa kênh không rewrite core
+
+FINAL INSTRUCTION
+
+Tư duy như đang build nền tảng cho hàng nghìn khách hàng, không phải project đơn lẻ.
