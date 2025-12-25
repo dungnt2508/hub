@@ -3,10 +3,10 @@ HR Domain Engine - Entry Handler
 """
 from typing import Dict, Any
 
-from ...schemas import DomainRequest, DomainResponse, DomainResult
-from ...shared.exceptions import DomainError, InvalidInputError
-from ...shared.logger import logger
-from .use_cases import (
+from backend.schemas import DomainRequest, DomainResponse, DomainResult
+from backend.shared.exceptions import DomainError, InvalidInputError
+from backend.shared.logger import logger
+from backend.domain.hr.use_cases import (
     CreateLeaveRequestUseCase,
     QueryLeaveBalanceUseCase,
     ApproveLeaveUseCase,

@@ -58,6 +58,10 @@ class RouterOrchestrator:
         Raises:
             RouterError: If routing fails
         """
+        # Task 7.2: Validate tenant_id
+        if not request.tenant_id or not request.tenant_id.strip():
+            raise RouterError("tenant_id is required in RouterRequest")
+        
         trace_id = str(uuid.uuid4())
         trace = RouterTrace(trace_id=trace_id)
         
@@ -66,6 +70,7 @@ class RouterOrchestrator:
                 "Router request received",
                 extra={
                     "trace_id": trace_id,
+                    "tenant_id": request.tenant_id,
                     "user_id": request.user_id,
                     "session_id": request.session_id,
                     "message_length": len(request.raw_message),

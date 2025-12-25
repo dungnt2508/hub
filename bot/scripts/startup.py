@@ -52,7 +52,7 @@ async def check_dependencies():
         import httpx
         qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{qdrant_url}/health", timeout=5.0)
+            response = await client.get(f"{qdrant_url}/healthz", timeout=5.0)
             if response.status_code == 200:
                 checks.append(("Qdrant", True))
                 logger.info("Qdrant connection: OK")

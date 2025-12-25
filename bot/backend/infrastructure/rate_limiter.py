@@ -63,8 +63,8 @@ class RateLimitService:
               }
         """
         try:
-            # Get rate limit config
-            config = get_rate_limit_config(tenant_id)
+            # Get rate limit config (async function)
+            config = await get_rate_limit_config(tenant_id)
             if not config:
                 logger.warning(f"Rate limit config not found for tenant: {tenant_id}")
                 return True, {"allowed": True, "reason": "no_config"}
@@ -177,7 +177,7 @@ class RateLimitService:
     async def get_usage_stats(tenant_id: str, user_key: str) -> dict:
         """Get current usage stats for tenant/user"""
         try:
-            config = get_rate_limit_config(tenant_id)
+            config = await get_rate_limit_config(tenant_id)
             if not config:
                 return {}
             

@@ -109,6 +109,7 @@
                 site_id: config.siteId,
                 platform: 'web',
                 user_data: {}, // Optional: can include user email, name, etc.
+                session_id: config.sessionId || null, // Reuse session_id if available (for token refresh)
             }),
         });
 
@@ -127,6 +128,11 @@
         config.token = data.data.token;
         config.tokenExpiry = Date.now() + (data.data.expiresIn * 1000);
         config.botConfig = data.data.botConfig;
+        
+        // Store sessionId from response (for token refresh reuse)
+        if (data.data.sessionId) {
+            config.sessionId = data.data.sessionId;
+        }
 
         // Schedule token refresh
         scheduleTokenRefresh(data.data.expiresIn);

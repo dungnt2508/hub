@@ -12,6 +12,7 @@ class RouterRequest:
     """Router input request"""
     raw_message: str
     user_id: str
+    tenant_id: str  # Task 7: Add tenant_id for multi-tenancy
     session_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     # Personalization context (optional, loaded from service)
@@ -25,6 +26,10 @@ class RouterRequest:
             raise ValueError("raw_message exceeds 5000 characters")
         if not self._is_valid_uuid(self.user_id):
             raise ValueError("user_id must be valid UUID")
+        if not self.tenant_id or not self.tenant_id.strip():
+            raise ValueError("tenant_id is required and non-empty")
+        if not self._is_valid_uuid(self.tenant_id):
+            raise ValueError("tenant_id must be valid UUID")
         if self.session_id and not self._is_valid_uuid(self.session_id):
             raise ValueError("session_id must be valid UUID if provided")
 

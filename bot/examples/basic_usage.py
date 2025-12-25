@@ -16,6 +16,7 @@ async def main():
     request = RouterRequest(
         raw_message="Tôi còn bao nhiêu ngày phép?",
         user_id=str(uuid.uuid4()),
+        tenant_id=str(uuid.uuid4()),  # Task 7: tenant_id is now required
     )
     
     # Route request

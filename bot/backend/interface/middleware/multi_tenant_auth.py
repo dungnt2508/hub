@@ -30,15 +30,60 @@ from ...shared.exceptions import (
 )
 
 
+def verify_webhook_secret(
+    request_body: bytes,
+    signature_header: Optional[str],
+    webhook_secret: Optional[str],
+) -> bool:
+    """
+    Verify webhook secret using HMAC-SHA256.
+    
+    Catalog service sends webhook with header:
+    X-Webhook-Signature: HMAC-SHA256(request_body, webhook_secret)
+    
+    Args:
+        request_body: Raw request body bytes
+        signature_header: Signature from X-Webhook-Signature header
+        webhook_secret: Tenant's webhook secret from database
+    
+    Returns:
+        True if signature is valid, False otherwise
+    """
+    if not webhook_secret or not webhook_secret.strip():
+        # If tenant has no webhook_secret configured, skip verification
+        # (backward compatibility - optional verification)
+        logger.warning("Webhook secret not configured for tenant, skipping verification")
+        return True
+    
+    if not signature_header:
+        logger.warning("Missing X-Webhook-Signature header")
+        return False
+    
+    try:
+        # Calculate expected signature
+        expected_signature = hmac.new(
+            webhook_secret.encode('utf-8'),
+            request_body,
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Compare signatures (constant-time comparison to prevent timing attacks)
+        return hmac.compare_digest(expected_signature, signature_header.strip())
+    
+    except Exception as e:
+        logger.error(f"Error verifying webhook secret: {e}", exc_info=True)
+        return False
+
+
 class MultiTenantAuthMiddleware:
     """
     Multi-tenant authentication middleware.
     
     Flows:
-    1. JWT Web Embed: Extract from Authorization header
-    2. Telegram: Extract from X-Telegram-Bot-Id header + verify request
-    3. Teams: Verify JWT from Microsoft
-    4. API Key: For service-to-service
+    1. JWT Web Embed: Extract tenant_id from JWT payload
+    2. Telegram: Resolve tenant_id from bot token (database lookup)
+    3. Teams: Extract tenant_id from verified JWT payload
+    4. API Key: Extract tenant_id from verified API key
     """
     
     @staticmethod
@@ -50,7 +95,7 @@ class MultiTenantAuthMiddleware:
         return auth_header[7:]  # Remove "Bearer " prefix
     
     @staticmethod
-    def verify_web_embed_jwt(token: str, tenant_id: str, origin: str) -> JWTPayload:
+    async def verify_web_embed_jwt(token: str, tenant_id: str, origin: str) -> JWTPayload:
         """
         Verify JWT for web embed flow.
         
@@ -66,8 +111,9 @@ class MultiTenantAuthMiddleware:
             AuthenticationError if invalid
         """
         try:
-            # Get tenant's JWT secret
-            jwt_secret = get_jwt_secret(tenant_id)
+            # Priority 1 Fix: Get tenant's JWT secret from database
+            from ...shared.auth_config import get_jwt_secret
+            jwt_secret = await get_jwt_secret(tenant_id)
             if not jwt_secret:
                 raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
             
@@ -108,7 +154,7 @@ class MultiTenantAuthMiddleware:
             raise AuthenticationError("Invalid token format")
     
     @staticmethod
-    def generate_web_embed_jwt(
+    async def generate_web_embed_jwt(
         tenant_id: str,
         user_key: str,
         origin: str,
@@ -116,6 +162,8 @@ class MultiTenantAuthMiddleware:
     ) -> str:
         """
         Generate JWT token for web embed.
+        
+        Priority 1 Fix: Get JWT secret from database.
         
         Args:
             tenant_id: Tenant ID
@@ -126,7 +174,8 @@ class MultiTenantAuthMiddleware:
         Returns:
             Signed JWT token
         """
-        jwt_secret = get_jwt_secret(tenant_id)
+        from ...shared.auth_config import get_jwt_secret
+        jwt_secret = await get_jwt_secret(tenant_id)
         if not jwt_secret:
             raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
         
@@ -149,7 +198,7 @@ class MultiTenantAuthMiddleware:
         return token
     
     @staticmethod
-    def verify_telegram_webhook(
+    async def verify_telegram_webhook(
         tenant_id: str,
         body: bytes,
         bot_token: str
@@ -163,9 +212,9 @@ class MultiTenantAuthMiddleware:
         3. Basic JSON validation
         
         Args:
-            tenant_id: Tenant ID
+            tenant_id: Tenant ID (resolved from bot token)
             body: Raw request body
-            bot_token: From X-Telegram-Bot-Id header
+            bot_token: Telegram bot token (from query param)
         
         Returns:
             True if valid
@@ -174,8 +223,9 @@ class MultiTenantAuthMiddleware:
             AuthenticationError if invalid
         """
         try:
-            # Get tenant config
-            config = get_tenant_config(tenant_id)
+            # Get tenant config from database
+            from ...shared.auth_config import get_tenant_config
+            config = await get_tenant_config(tenant_id)
             if not config or not config.telegram_enabled:
                 raise AuthorizationError("Telegram not enabled for tenant")
             
@@ -197,38 +247,121 @@ class MultiTenantAuthMiddleware:
             raise AuthenticationError("Invalid JSON payload")
     
     @staticmethod
-    def verify_teams_jwt(token: str, tenant_id: str) -> Dict[str, Any]:
+    async def verify_teams_jwt(token: str, tenant_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Verify Microsoft Teams JWT.
+        Verify Microsoft Teams JWT with JWKS signature verification.
+        
+        Task 1.2: Implement proper Microsoft JWKS verification.
         
         Args:
             token: JWT from Teams
-            tenant_id: Tenant ID
+            tenant_id: Optional tenant ID (for validation, but extracted from JWT payload)
         
         Returns:
-            Decoded payload if valid
+            Decoded payload if valid (includes tenant_id from JWT)
         
         Raises:
             AuthenticationError if invalid
         """
-        # TODO: Implement Microsoft JWKS verification
-        # Reference: https://learn.microsoft.com/en-us/azure/bot-service/bot-builder-authentication-components
-        
         try:
-            # For now, basic validation
-            # In production: fetch JWKs from Microsoft, verify signature
-            payload = jwt.decode(token, options={"verify_signature": False})
+            # Decode JWT header to get kid (key ID)
+            unverified_header = jwt.get_unverified_header(token)
+            kid = unverified_header.get("kid")
             
-            # Validate issuer, audience, etc.
-            # This is placeholder - need real Microsoft JWKS endpoint
+            if not kid:
+                raise AuthenticationError("JWT missing kid in header")
             
-            return payload
+            # Get public key from JWKS
+            from ...infrastructure.jwks_client import get_jwks_client
+            jwks_client = get_jwks_client()
+            
+            try:
+                public_key_pem = await jwks_client.get_public_key(kid)
+            except Exception as e:
+                logger.error(f"Failed to get public key for kid {kid}: {e}")
+                raise AuthenticationError("Failed to verify JWT signature: key not found")
+            
+            # Verify JWT signature and decode payload
+            try:
+                # Microsoft Teams JWT expected claims:
+                # - iss: Issuer (should be Microsoft)
+                # - aud: Audience (should match bot service)
+                # - exp: Expiration time
+                # - nbf: Not before time
+                # - serviceUrl: Bot service URL
+                # - from: User information (aadObjectId, etc.)
+                
+                payload = jwt.decode(
+                    token,
+                    public_key_pem,
+                    algorithms=["RS256"],
+                    options={
+                        "verify_signature": True,
+                        "verify_exp": True,
+                        "verify_nbf": True,
+                    }
+                )
+                
+                # Validate issuer (Microsoft Bot Framework)
+                # Note: Issuer can vary, but should be from Microsoft domain
+                iss = payload.get("iss", "")
+                if not iss or "microsoft" not in iss.lower():
+                    logger.warning(f"Invalid issuer in Teams JWT: {iss}")
+                    raise AuthenticationError("Invalid JWT issuer")
+                
+                # Validate audience (optional - depends on bot configuration)
+                # For now, we accept any audience, but can be made stricter
+                # aud = payload.get("aud")
+                # if aud and aud != expected_audience:
+                #     raise AuthenticationError("Invalid JWT audience")
+                
+                # Extract tenant_id from JWT payload if available
+                # Teams JWT may have tenantId in conversation or serviceUrl
+                jwt_tenant_id = payload.get("tenantId") or payload.get("conversation", {}).get("tenantId")
+                
+                # If tenant_id provided, validate it matches JWT
+                if tenant_id and jwt_tenant_id and tenant_id != jwt_tenant_id:
+                    logger.warning(
+                        f"Tenant ID mismatch: JWT={jwt_tenant_id}, provided={tenant_id}"
+                    )
+                    raise AuthenticationError("JWT tenant ID mismatch")
+                
+                # Use tenant_id from JWT if available, otherwise use provided
+                if jwt_tenant_id:
+                    payload["tenant_id"] = jwt_tenant_id
+                elif tenant_id:
+                    payload["tenant_id"] = tenant_id
+                else:
+                    # Try to extract from serviceUrl or other fields
+                    service_url = payload.get("serviceUrl", "")
+                    # Service URL format: https://smba.trafficmanager.net/{tenant_id}/
+                    # This is a fallback, but tenant_id should be in payload
+                    logger.warning("No tenant_id found in JWT payload or provided")
+                
+                logger.info(f"Teams JWT verified successfully - tenant: {payload.get('tenant_id')}")
+                return payload
+            
+            except jwt.InvalidSignatureError:
+                logger.warning("Invalid Teams JWT signature")
+                raise AuthenticationError("Invalid JWT signature")
+            except jwt.ExpiredSignatureError:
+                logger.warning("Expired Teams JWT")
+                raise AuthenticationError("JWT expired")
+            except jwt.InvalidTokenError as e:
+                logger.warning(f"Invalid Teams JWT: {e}")
+                raise AuthenticationError(f"Invalid JWT: {e}")
         
-        except jwt.DecodeError:
-            raise AuthenticationError("Invalid Teams JWT")
+        except AuthenticationError:
+            raise
+        except jwt.DecodeError as e:
+            logger.warning(f"Failed to decode Teams JWT: {e}")
+            raise AuthenticationError("Invalid JWT format")
+        except Exception as e:
+            logger.error(f"Unexpected error verifying Teams JWT: {e}", exc_info=True)
+            raise AuthenticationError(f"JWT verification failed: {e}")
     
     @staticmethod
-    def resolve_context_from_jwt(
+    async def resolve_context_from_jwt(
         token: str,
         tenant_id: str,
         origin: str,
@@ -237,16 +370,18 @@ class MultiTenantAuthMiddleware:
         """
         Resolve request context from JWT token.
         
+        Priority 1 Fix: Async version to query database.
+        
         Args:
             token: JWT token
-            tenant_id: Tenant ID
+            tenant_id: Tenant ID (from JWT payload, not from query param)
             origin: Request origin
             ip: Client IP
         
         Returns:
             RequestContext object
         """
-        payload = MultiTenantAuthMiddleware.verify_web_embed_jwt(
+        payload = await MultiTenantAuthMiddleware.verify_web_embed_jwt(
             token,
             tenant_id,
             origin
@@ -303,6 +438,8 @@ def require_jwt_auth(func):
     """
     Decorator: Require JWT authentication.
     Extracts token from Authorization header and verifies it.
+    
+    Task 3.1: Extract tenant_id from JWT payload, NOT from query param.
     """
     @wraps(func)
     async def wrapper(request, *args, **kwargs):
@@ -311,20 +448,24 @@ def require_jwt_auth(func):
             auth_header = request.headers.get("Authorization", "")
             token = MultiTenantAuthMiddleware.extract_jwt_token(auth_header)
             
-            # Get tenant_id from request (path/query param or config)
-            tenant_id = kwargs.get("tenant_id") or request.query_params.get("tenant_id")
-            if not tenant_id:
-                raise AuthenticationError("Missing tenant_id")
+            # Task 3.1: Extract tenant_id from JWT payload, NOT from query param
+            # Decode JWT without verification first to get tenant_id
+            import jwt as jwt_lib
+            unverified_payload = jwt_lib.decode(token, options={"verify_signature": False})
+            tenant_id_from_jwt = unverified_payload.get("tenant_id")
+            
+            if not tenant_id_from_jwt:
+                raise AuthenticationError("JWT token missing tenant_id claim")
             
             # Get origin from request
             origin = request.headers.get("Origin", "")
             if not origin:
                 logger.warning("Missing Origin header for web embed")
             
-            # Verify and resolve context
-            context = MultiTenantAuthMiddleware.resolve_context_from_jwt(
+            # Verify and resolve context (this will verify signature and validate tenant_id)
+            context = await MultiTenantAuthMiddleware.resolve_context_from_jwt(
                 token,
-                tenant_id,
+                tenant_id_from_jwt,  # Use tenant_id from JWT, not query param
                 origin,
                 ip=request.client.host if request.client else None
             )
@@ -337,6 +478,9 @@ def require_jwt_auth(func):
         except AuthenticationError as e:
             logger.warning(f"Authentication failed: {e}")
             return {"error": True, "message": str(e), "status_code": 401}
+        except Exception as e:
+            logger.error(f"Unexpected error in require_jwt_auth: {e}", exc_info=True)
+            return {"error": True, "message": "Authentication failed", "status_code": 401}
     
     return wrapper
 

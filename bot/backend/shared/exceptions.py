@@ -66,3 +66,8 @@ class AuthorizationError(RouterError):
 class TenantNotFoundError(RouterError):
     """Tenant not found"""
     pass
+
+
+class TenantAlreadyExistsError(RouterError):
+    """Tenant already exists (duplicate site_id)"""
+    pass

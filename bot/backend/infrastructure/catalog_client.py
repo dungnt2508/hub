@@ -115,6 +115,7 @@ class CatalogClient:
     )
     async def get_products(
         self,
+        tenant_id: str,  # Task 4.1: REQUIRED - enforce tenant isolation
         status: str = "published",
         review_status: str = "approved",
         limit: int = 100,
@@ -124,7 +125,10 @@ class CatalogClient:
         """
         Fetch products from catalog API.
         
+        Task 4.1: tenant_id is REQUIRED to enforce tenant isolation.
+        
         Args:
+            tenant_id: Tenant UUID (REQUIRED for multi-tenant filtering)
             status: Product status filter (default: "published")
             review_status: Review status filter (default: "approved")
             limit: Number of products per page (default: 100)
@@ -135,12 +139,18 @@ class CatalogClient:
             ProductsResponse with products list and pagination info
         
         Raises:
+            ValueError: If tenant_id is None or empty
             ExternalServiceError: If API request fails
         """
+        # Task 4.1: Validate tenant_id is provided
+        if not tenant_id or not tenant_id.strip():
+            raise ValueError("tenant_id is required and cannot be empty")
+        
         client = await self._get_client()
         
         # Build query parameters
         params = {
+            "tenant_id": tenant_id,  # Always include tenant_id
             "status": status,
             "review_status": review_status,
             "limit": limit,
@@ -244,6 +254,7 @@ class CatalogClient:
     
     async def get_all_products(
         self,
+        tenant_id: str,  # Task 4.1: REQUIRED - enforce tenant isolation
         status: str = "published",
         review_status: str = "approved",
         batch_size: int = 100,
@@ -252,7 +263,10 @@ class CatalogClient:
         """
         Fetch all products with automatic pagination.
         
+        Task 4.1: tenant_id is REQUIRED to enforce tenant isolation.
+        
         Args:
+            tenant_id: Tenant UUID (REQUIRED for multi-tenant filtering)
             status: Product status filter
             review_status: Review status filter
             batch_size: Number of products per batch
@@ -260,12 +274,20 @@ class CatalogClient:
         
         Returns:
             List of all products
+        
+        Raises:
+            ValueError: If tenant_id is None or empty
         """
+        # Task 4.1: Validate tenant_id is provided
+        if not tenant_id or not tenant_id.strip():
+            raise ValueError("tenant_id is required and cannot be empty")
+        
         all_products = []
         offset = 0
         
         while True:
             response = await self.get_products(
+                tenant_id=tenant_id,  # Required parameter
                 status=status,
                 review_status=review_status,
                 limit=batch_size,
@@ -288,22 +310,34 @@ class CatalogClient:
         
         return all_products
     
-    async def get_product(self, product_id: str) -> Optional[CatalogProduct]:
+    async def get_product(self, product_id: str, tenant_id: str) -> Optional[CatalogProduct]:
         """
         Fetch single product by ID.
         
+        Task 4.1: tenant_id is REQUIRED to enforce tenant isolation.
+        
         Args:
             product_id: Product UUID
+            tenant_id: Tenant UUID (REQUIRED for multi-tenant filtering)
         
         Returns:
             CatalogProduct or None if not found
+        
+        Raises:
+            ValueError: If tenant_id is None or empty
         """
+        # Task 4.1: Validate tenant_id is provided
+        if not tenant_id or not tenant_id.strip():
+            raise ValueError("tenant_id is required and cannot be empty")
+        
         client = await self._get_client()
         url = f"{self.base_url}/api/products/{product_id}"
         
         try:
+            # Include tenant_id in query params
             response = await client.get(
                 url,
+                params={"tenant_id": tenant_id},
                 headers=self._build_headers(),
             )
             

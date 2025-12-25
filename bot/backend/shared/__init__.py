@@ -10,6 +10,8 @@ from .exceptions import (
     SessionNotFoundError,
     DomainError,
     ExternalServiceError,
+    TenantNotFoundError,
+    TenantAlreadyExistsError,
 )
 from .intent_registry import IntentRegistry, intent_registry
 
@@ -23,6 +25,8 @@ __all__ = [
     "SessionNotFoundError",
     "DomainError",
     "ExternalServiceError",
+    "TenantNotFoundError",
+    "TenantAlreadyExistsError",
     "IntentRegistry",
     "intent_registry",
 ]

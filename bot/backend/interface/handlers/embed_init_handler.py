@@ -9,9 +9,10 @@ import os
 from datetime import datetime
 
 from ..middleware.multi_tenant_auth import MultiTenantAuthMiddleware
-from ...shared.auth_config import get_tenant_config, validate_origin, register_test_tenant
+from ...shared.auth_config import get_tenant_config, validate_origin
 from ...shared.logger import logger
 from ...shared.exceptions import TenantNotFoundError, AuthorizationError
+from ...infrastructure.database_client import database_client
 
 
 class EmbedInitHandler:
@@ -92,13 +93,20 @@ class EmbedInitHandler:
                     "status_code": 400
                 }
             
-            # Get tenant config by site_id
-            # TODO: Implement site_id → tenant_id mapping in DB
-            tenant_id = EmbedInitHandler._resolve_tenant_id(site_id)
+            # Priority 1 Fix: Resolve tenant_id from site_id via database
+            tenant_id = await EmbedInitHandler._resolve_tenant_id(site_id)
+            if not tenant_id:
+                logger.warning(f"Tenant not found for site_id: {site_id}")
+                return {
+                    "error": True,
+                    "message": "Tenant not found",
+                    "status_code": 404
+                }
             
-            config = get_tenant_config(tenant_id)
+            # Get tenant config from database
+            config = await get_tenant_config(tenant_id)
             if not config:
-                logger.warning(f"Tenant not found: {site_id}")
+                logger.warning(f"Tenant config not found: {tenant_id}")
                 return {
                     "error": True,
                     "message": "Tenant not found",
@@ -114,33 +122,62 @@ class EmbedInitHandler:
                 }
             
             # Validate origin
-            if not validate_origin(tenant_id, origin):
-                logger.warning(
-                    f"Origin not allowed - tenant: {tenant_id}, origin: {origin}"
-                )
+            origin_allowed = await validate_origin(tenant_id, origin)
+            if not origin_allowed:
+                # Log already handled in validate_origin() with allowed origins info
                 return {
                     "error": True,
                     "message": "Origin not allowed",
                     "status_code": 403
                 }
             
-            # Generate user_key (server-side, not from user input)
-            session_id = EmbedInitHandler._generate_session_id()
+            # Check if this is a token refresh (has session_id) or new initialization
+            existing_session_id = request_body.get("session_id")
+            is_new_session = existing_session_id is None
+            
+            if is_new_session:
+                # New session: generate new session_id
+                session_id = EmbedInitHandler._generate_session_id()
+                logger.info(
+                    f"Web embed init (NEW SESSION) - tenant: {tenant_id}, site_id: {site_id}, "
+                    f"session_id: {session_id[:8]}..., origin: {origin}, ip: {ip}"
+                )
+            else:
+                # Token refresh: reuse existing session_id
+                session_id = existing_session_id
+                logger.debug(
+                    f"Web embed init (TOKEN REFRESH) - tenant: {tenant_id}, site_id: {site_id}, "
+                    f"session_id: {session_id[:8]}..., origin: {origin}"
+                )
+            
+            # Generate user_key from session_id (consistent for same session)
             user_key = EmbedInitHandler.generate_user_key(site_id, session_id)
             
             # Issue JWT token
-            token = MultiTenantAuthMiddleware.generate_web_embed_jwt(
+            token = await MultiTenantAuthMiddleware.generate_web_embed_jwt(
                 tenant_id=tenant_id,
                 user_key=user_key,
                 origin=origin,
                 expiry_seconds=config.web_embed_token_expiry_seconds
             )
             
-            # Log initialization (for analytics)
-            logger.info(
-                f"Web embed initialized - "
-                f"tenant: {tenant_id}, origin: {origin}, ip: {ip}"
-            )
+            # Audit log chỉ khi tạo session mới (không log khi refresh token)
+            if is_new_session:
+                from backend.shared.audit_helper import log_tenant_operation
+                await log_tenant_operation(
+                    tenant_id=tenant_id,
+                    operation="init",
+                    resource_type="embed_session",
+                    user_key=user_key,
+                    channel="web",
+                    ip_address=ip,
+                    metadata={
+                        "site_id": site_id,
+                        "origin": origin,
+                        "platform": platform,
+                        "session_id": session_id,
+                    }
+                )
             
             # Prepare response
             bot_config = EmbedInitHandler._prepare_bot_config(config)
@@ -151,6 +188,7 @@ class EmbedInitHandler:
                     "token": token,
                     "expiresIn": config.web_embed_token_expiry_seconds,
                     "botConfig": bot_config,
+                    "sessionId": session_id,  # Trả về session_id để frontend reuse
                     # For debugging (remove in production)
                     "userKey": user_key,
                     "issuedAt": datetime.now().isoformat(),
@@ -166,14 +204,35 @@ class EmbedInitHandler:
             }
     
     @staticmethod
-    def _resolve_tenant_id(site_id: str) -> str:
+    async def _resolve_tenant_id(site_id: str) -> Optional[str]:
         """
-        Resolve tenant_id from site_id.
-        TODO: Implement database lookup
+        Resolve tenant_id from site_id via database lookup.
         
-        For now: site_id == tenant_id
+        Priority 1 Fix: Query tenant_sites table to resolve tenant_id.
+        
+        Args:
+            site_id: Site identifier
+        
+        Returns:
+            Tenant UUID if found and active, None otherwise
         """
-        return site_id
+        try:
+            from ...domain.tenant.tenant_service import TenantService
+            
+            # Get database connection
+            db_pool = database_client.pool
+            if not db_pool:
+                logger.error("Database pool not available")
+                return None
+            
+            async with db_pool.acquire() as conn:
+                tenant_service = TenantService(conn)
+                tenant_id = await tenant_service.resolve_tenant_id_from_site_id(site_id)
+                return tenant_id
+        
+        except Exception as e:
+            logger.error(f"Error resolving tenant_id from site_id: {e}", exc_info=True)
+            return None
     
     @staticmethod
     def _generate_session_id() -> str:
@@ -231,6 +290,10 @@ async def embed_init_endpoint(request):
         # Get client IP
         ip = request.client.host if request.client else None
         
+        # Log request để track số lượng calls
+        site_id = body.get("site_id", "unknown")
+        logger.debug(f"POST /embed/init called - site_id: {site_id}, origin: {origin}, ip: {ip}")
+        
         # Initialize
         result = await EmbedInitHandler.initialize(
             request_body=body,
@@ -253,14 +316,11 @@ async def embed_init_endpoint(request):
 # EXAMPLE / TESTING
 # ============================================================================
 
-def setup_test_data():
-    """Setup test data for development"""
-    # Register test tenant
-    register_test_tenant(
-        tenant_id="catalog-001",
-        name="GSNAKE Catalog",
-        jwt_secret="test_jwt_secret_catalog_001_very_long_and_secure",
-    )
-    
-    logger.info("Test data setup complete")
+# Priority 2 Fix: Removed setup_test_data() function
+# Test tenants should be created via:
+# 1. POST /admin/tenants API endpoint
+# 2. scripts/create_tenant.py script
+# 3. Direct database inserts for testing
+#
+# DO NOT create test data in application code.
 

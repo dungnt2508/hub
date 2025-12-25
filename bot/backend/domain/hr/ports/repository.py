@@ -4,7 +4,7 @@ HR Repository Interface
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from ...entities import Employee, LeaveRequest
+from backend.domain.hr.entities import Employee, LeaveRequest
 
 
 class IHRRepository(ABC):
