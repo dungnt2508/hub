@@ -484,7 +484,7 @@ curl -X POST http://bot.service/embed/init \
 curl http://bot.service/health
 
 # Should return:
-# {"status":"healthy","service":"pnj-hub-router","redis":"healthy"}
+# {"status":"healthy","service":"hub-bot-router","redis":"healthy"}
 ```
 
 ### Rate Limit Exceeded

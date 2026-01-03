@@ -3,10 +3,10 @@ Query Leave Balance Use Case
 """
 from datetime import datetime
 
-from backend.schemas import DomainRequest, DomainResponse, DomainResult
-from backend.domain.hr.use_cases.base_use_case import BaseUseCase
-from backend.domain.hr.entities import Employee
-from backend.domain.hr.ports.repository import IHRRepository
+from ....schemas import DomainRequest, DomainResponse, DomainResult
+from .base_use_case import BaseUseCase
+from ..entities import Employee
+from ..ports.repository import IHRRepository
 
 
 class QueryLeaveBalanceUseCase(BaseUseCase):

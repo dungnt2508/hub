@@ -66,7 +66,7 @@ DATABASE_URL=postgresql://catalog_user:catalog_pw@hub_postgres:5432/catalog_db
 ## 📊 Management Tools
 
 - **pgAdmin**: http://localhost:5050
-  - Email: `admin@pnj-hub.local`
+  - Email: `admin@hub-bot.local`
   - Password: `admin`
 
 - **Redis Insight**: http://localhost:8389

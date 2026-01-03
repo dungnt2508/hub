@@ -17,12 +17,6 @@ from qdrant_client.models import (
     ScoredPoint,
 )
 
-try:
-    from qdrant_client.http.exceptions import ResponseHandlingException
-except ImportError:
-    # Fallback if exception path changes
-    ResponseHandlingException = Exception
-
 from ..shared.config import config
 from ..shared.logger import logger
 from ..shared.exceptions import ExternalServiceError
@@ -396,33 +390,12 @@ class QdrantClient:
             return None
     
     async def health_check(self) -> bool:
-        """
-        Check Qdrant service health.
-        
-        Returns:
-            True if Qdrant is available and responding, False otherwise
-        """
+        """Check Qdrant service health"""
         try:
-            # Check if client is initialized
-            if not hasattr(self, 'client') or self.client is None:
-                logger.warning("Qdrant client not initialized")
-                return False
-            
             # Simple health check: try to list collections
-            # This will fail if Qdrant is not available
             self.client.get_collections()
             return True
-        except ResponseHandlingException as e:
-            # Qdrant HTTP client exception (connection refused, etc.)
-            logger.warning(f"Qdrant health check failed (connection error): {e}")
-            return False
-        except (ConnectionError, OSError) as e:
-            # Connection refused, connection reset, etc.
-            logger.warning(f"Qdrant health check failed (connection error): {e}")
-            return False
         except Exception as e:
-            # Other exceptions (timeout, API errors, etc.)
-            error_type = type(e).__name__
-            logger.warning(f"Qdrant health check failed ({error_type}): {e}")
+            logger.error(f"Qdrant health check failed: {e}", exc_info=True)
             return False
 

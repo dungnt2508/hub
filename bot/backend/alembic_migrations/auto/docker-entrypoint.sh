@@ -35,4 +35,3 @@ done
 # Execute the main command (passed as arguments to this script)
 echo -e "${GREEN}[Entrypoint] Starting application...${NC}"
 exec "$@"
-

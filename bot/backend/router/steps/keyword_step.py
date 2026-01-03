@@ -1,9 +1,12 @@
 """
 STEP 3: Keyword Hint (Soft Boost)
 """
-from typing import Dict, Any
+import time
+from typing import Dict, Any, Optional
+from uuid import UUID
 
 from ...shared.logger import logger
+from ...infrastructure.config_loader import config_loader
 
 
 class KeywordHintStep:
@@ -12,39 +15,64 @@ class KeywordHintStep:
     
     This step does NOT make final routing decisions.
     It only provides boost scores for other classifiers.
+    Loads keywords from database via config_loader.
     """
     
     def __init__(self):
-        # Domain keywords with weights
-        self.domain_keywords = {
-            "hr": {
-                "nghỉ phép": 0.5,
-                "phép năm": 0.5,
-                "nhân sự": 0.4,
-                "lương": 0.3,
-                "chấm công": 0.3,
-            },
-            "operations": {
-                "vận hành": 0.4,
-                "sản xuất": 0.4,
-                "kho": 0.3,
-            },
-        }
+        self._domain_keywords: Optional[Dict[str, Dict[str, float]]] = None
+        self._last_tenant_id: Optional[UUID] = None
+        self._last_refresh_time: float = 0
+        self._refresh_interval = 300  # 5 minutes
     
-    async def execute(self, message: str) -> Dict[str, Any]:
+    async def _load_keywords(self, tenant_id: Optional[UUID] = None):
+        """Load keyword hints from config"""
+        current_time = time.time()
+        
+        # Check if we need to refresh
+        if (
+            self._domain_keywords is None
+            or tenant_id != self._last_tenant_id
+            or (current_time - self._last_refresh_time) > self._refresh_interval
+        ):
+            # Load from config loader
+            hints = await config_loader.get_keyword_hints(tenant_id, enabled_only=True)
+            
+            # Build domain_keywords dict
+            domain_keywords = {}
+            for hint in hints:
+                domain = hint["domain"]
+                keywords = hint.get("keywords", {})
+                
+                if domain not in domain_keywords:
+                    domain_keywords[domain] = {}
+                
+                # Merge keywords (if multiple hints for same domain, combine)
+                domain_keywords[domain].update(keywords)
+            
+            self._domain_keywords = domain_keywords
+            self._last_tenant_id = tenant_id
+            self._last_refresh_time = current_time
+    
+    async def execute(self, message: str, tenant_id: Optional[UUID] = None) -> Dict[str, Any]:
         """
         Calculate keyword-based boost scores.
         
         Args:
             message: Normalized message
+            tenant_id: Optional tenant ID for tenant-specific keywords
             
         Returns:
             Dict with "boost" scores per domain
         """
+        await self._load_keywords(tenant_id)
+        
+        if not self._domain_keywords:
+            return {"boost": {}}
+        
         boost = {}
         message_lower = message.lower()
         
-        for domain, keywords in self.domain_keywords.items():
+        for domain, keywords in self._domain_keywords.items():
             score = 0.0
             for keyword, weight in keywords.items():
                 if keyword in message_lower:
@@ -57,7 +85,7 @@ class KeywordHintStep:
         
         logger.debug(
             "Keyword boost calculated",
-            extra={"boost": boost}
+            extra={"boost": boost, "tenant_id": str(tenant_id) if tenant_id else None}
         )
         
         return {"boost": boost}

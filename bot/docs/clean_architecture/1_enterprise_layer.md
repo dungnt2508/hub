@@ -9,7 +9,7 @@
     Central Logging & Monitoring
     Compliance/Policy Engine
     ```
-    Layer này đảm bảo toàn bộ service trong PNJ vận hành theo chuẩn chung.
+    Layer này đảm bảo toàn bộ service trong doanh nghiệp vận hành theo chuẩn chung.
 
 
 # II. Giải thích thêm và tại sao gọi là cross-cutting

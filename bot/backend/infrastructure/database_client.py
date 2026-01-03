@@ -26,7 +26,7 @@ class DatabaseClient:
         if self._pool is None:
             try:
                 # Get DATABASE_URL from environment
-                db_url = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_password@localhost:5432/bot_db")
+                db_url = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_pw@localhost:5432/bot_db")
                 
                 # Parse DATABASE_URL
                 # Format: postgresql+asyncpg://user:password@host:port/database

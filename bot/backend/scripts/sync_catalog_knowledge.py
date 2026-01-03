@@ -21,7 +21,7 @@ async def get_db_connection():
     """Get database connection"""
     # Get DATABASE_URL from environment
     import os
-    db_url = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_password@localhost:5432/bot_db")
+    db_url = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_pw@localhost:5432/bot_db")
     
     # Parse DATABASE_URL
     # Format: postgresql+asyncpg://user:password@host:port/database

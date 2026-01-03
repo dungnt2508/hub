@@ -435,5 +435,5 @@ A: Prevent abuse (spam, DDoS). Per tenant + user. Smooth degradation.
 
 *Tài liệu được tạo: December 20, 2025*  
 *Tư vấn bởi: AI Senior Backend Architect*  
-*Dự án: PNJ Hub Bot Service*
+*Dự án: Hub Bot Service*
 

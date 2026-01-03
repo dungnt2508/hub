@@ -1,6 +1,6 @@
 # I. Interface Adapters (Outer Layer – Adapter)
 - Lớp này map hệ thống ngoài vào domain
-- Adapters trong PNJ cần có:
+- Adapters cần có:
     ```
     SharePoint Adapter
     (Graph API client, mapping fields → Domain Object)
@@ -61,7 +61,7 @@
 ```
 ### 4. External System Adapter
 ```
-    Gói lại mọi hệ thống PNJ đang dùng:
+    Gói lại mọi hệ thống doanh nghiệp đang dùng:
 
         SharePoint Adapter (Graph API)
         SAP Adapter (RFC/BAPI/ODATA)

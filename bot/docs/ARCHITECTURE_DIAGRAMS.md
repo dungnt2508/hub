@@ -9,7 +9,7 @@
 │  Web Embed         │  Telegram Bot       │  Teams Bot            │
 │  (Script)          │  (User Message)     │  (User Message)       │
 │                    │                     │                       │
-│  GSNAKE.com        │  @pnj_hr_bot        │  PNJ HR Assistant     │
+│  GSNAKE.com        │  @hr_bot            │  HR Assistant         │
 └─────────┬──────────┴────────────┬────────┴──────────┬────────────┘
           │                       │                    │
           │ HTTPS POST            │ Telegram Webhook   │ Teams Webhook
@@ -161,7 +161,7 @@ T=150ms  ┌─ Bot Service receives request
               "token": "eyJhbGciOiJIUzI1NiI...",
               "expiresIn": 300,
               "botConfig": {
-                "name": "PNJ HR Assistant",
+                "name": "HR Assistant",
                 "theme": {...}
               }
             }
@@ -260,7 +260,7 @@ Timeline: Telegram user sends message
 
 ┌─────────────────────────────┐
 │ Telegram User sends message │
-│ to @pnj_hr_bot              │
+│ to @hr_bot                  │
 └──────────┬──────────────────┘
            │
            └─ Telegram API processes message

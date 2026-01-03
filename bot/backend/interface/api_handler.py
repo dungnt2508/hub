@@ -11,7 +11,6 @@ from ..schemas import RouterRequest, RouterResponse
 from ..personalization import PersonalizationService, ResponseFormatter
 from ..shared.logger import logger
 from ..shared.exceptions import RouterError, InvalidInputError
-from ..shared.error_formatter import ErrorFormatter, ErrorCode
 
 
 class APIHandler:
@@ -60,20 +59,12 @@ class APIHandler:
             raw_message: User message
             user_id: User ID
             session_id: Optional session ID
-            metadata: Optional request metadata (must contain tenant_id)
+            metadata: Optional request metadata
             
         Returns:
             Formatted response dict with personalization
         """
         try:
-            # Task 7.3: Extract tenant_id from metadata
-            if not metadata or "tenant_id" not in metadata:
-                raise InvalidInputError("tenant_id is required in metadata")
-            
-            tenant_id = metadata.get("tenant_id")
-            if not tenant_id or not tenant_id.strip():
-                raise InvalidInputError("tenant_id cannot be empty")
-            
             # Load user preferences
             preferences = await self.personalization_service.get_preferences(user_id)
             
@@ -81,7 +72,6 @@ class APIHandler:
             request = RouterRequest(
                 raw_message=raw_message,
                 user_id=user_id,
-                tenant_id=tenant_id,  # Task 7.3: Pass tenant_id to RouterRequest
                 session_id=session_id,
                 metadata=metadata,
                 preferences_context={
@@ -112,46 +102,39 @@ class APIHandler:
             return formatted_response
             
         except InvalidInputError as e:
-            # Task 8: Use standardized error formatter
-            error_response = ErrorFormatter.format_exception(
-                exception=e,
-                status_code=400,
-                log_context={
-                    "user_id": user_id,
-                    "tenant_id": metadata.get("tenant_id") if metadata else None,
-                }
+            logger.warning(
+                f"Invalid input: {e}",
+                extra={"user_id": user_id}
             )
-            # Add avatar for user-facing errors
-            error_response["avatar"] = await self._get_default_avatar(user_id)
-            return error_response
+            return {
+                "error": "INVALID_INPUT",
+                "message": str(e),
+                "avatar": await self._get_default_avatar(user_id),
+            }
             
         except RouterError as e:
-            # Task 8: Use standardized error formatter
-            error_response = ErrorFormatter.format_exception(
-                exception=e,
-                status_code=500,
-                log_context={
-                    "user_id": user_id,
-                    "tenant_id": metadata.get("tenant_id") if metadata else None,
-                }
+            logger.error(
+                f"Router error: {e}",
+                extra={"user_id": user_id},
+                exc_info=True
             )
-            # Add avatar for user-facing errors
-            error_response["avatar"] = await self._get_default_avatar(user_id)
-            return error_response
+            return {
+                "error": "ROUTER_ERROR",
+                "message": "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại sau.",
+                "avatar": await self._get_default_avatar(user_id),
+            }
             
         except Exception as e:
-            # Task 8: Use standardized error formatter
-            error_response = ErrorFormatter.format_exception(
-                exception=e,
-                status_code=500,
-                log_context={
-                    "user_id": user_id,
-                    "tenant_id": metadata.get("tenant_id") if metadata else None,
-                }
+            logger.error(
+                f"Unexpected error: {e}",
+                extra={"user_id": user_id},
+                exc_info=True
             )
-            # Add avatar for user-facing errors
-            error_response["avatar"] = await self._get_default_avatar(user_id)
-            return error_response
+            return {
+                "error": "SYSTEM_ERROR",
+                "message": "Xin lỗi, có lỗi hệ thống. Vui lòng thử lại sau.",
+                "avatar": await self._get_default_avatar(user_id),
+            }
     
     async def _get_default_avatar(self, user_id: str) -> Dict[str, Any]:
         """Get default avatar for error responses"""

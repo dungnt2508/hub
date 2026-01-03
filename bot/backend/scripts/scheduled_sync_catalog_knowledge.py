@@ -19,7 +19,7 @@ import asyncpg
 
 async def get_db_connection():
     """Get database connection"""
-    db_url = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_password@localhost:5432/bot_db")
+    db_url = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_pw@localhost:5432/bot_db")
     
     if db_url.startswith("postgresql+asyncpg://"):
         db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")

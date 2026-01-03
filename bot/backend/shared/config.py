@@ -10,7 +10,7 @@ class RouterConfig:
     
     def __init__(self):
         # ==================== APP ====================
-        self.APP_NAME = os.getenv("APP_NAME", "Hybrid Multi Tenant Router")
+        self.APP_NAME = os.getenv("APP_NAME", "Hub Bot Router")
         self.APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
         self.ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
         self.DEBUG = os.getenv("DEBUG", "false").lower() == "true"

@@ -45,4 +45,3 @@ ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Default command (can be overridden in docker-compose)
 CMD ["python", "-m", "uvicorn", "backend.interface.api:app", "--host", "0.0.0.0", "--port", "8386"]
-

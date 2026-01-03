@@ -12,7 +12,7 @@ docker ps | grep hub_backend
 curl http://localhost:8386/health
 
 # Kết quả mong đợi:
-# {"status":"healthy","service":"pnj-hub-router","version":"1.0.0","redis":"healthy"}
+# {"status":"healthy","service":"hub-bot-router","version":"1.0.0","redis":"healthy"}
 ```
 
 ### Nếu bot service chưa chạy:

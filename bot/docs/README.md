@@ -347,5 +347,5 @@ Refer to the appropriate document:
 
 *Generated: December 20, 2025*  
 *Consultant: AI Senior Backend Architect*  
-*Project: PNJ Hub Bot Service Multi-Tenant Authentication*
+*Project: Hub Bot Service Multi-Tenant Authentication*
 

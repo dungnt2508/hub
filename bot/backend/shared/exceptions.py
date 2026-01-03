@@ -23,6 +23,11 @@ class SessionCorruptedError(RouterError):
     pass
 
 
+class NotFoundError(RouterError):
+    """Resource not found"""
+    pass
+
+
 class RoutingError(RouterError):
     """Routing decision failed"""
     pass
@@ -65,9 +70,4 @@ class AuthorizationError(RouterError):
 
 class TenantNotFoundError(RouterError):
     """Tenant not found"""
-    pass
-
-
-class TenantAlreadyExistsError(RouterError):
-    """Tenant already exists (duplicate site_id)"""
     pass

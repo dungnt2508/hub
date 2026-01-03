@@ -315,7 +315,7 @@ d:\project python\hub\catalog\docs\
 
 *Tư vấn hoàn thành: December 20, 2025*  
 *Người tư vấn: AI Senior Backend Architect*  
-*Dự án: PNJ Hub Multi-Tenant Bot Service*
+*Dự án: Hub Multi-Tenant Bot Service*
 
 **Let's build! 🚀**
 

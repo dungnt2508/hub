@@ -143,7 +143,7 @@ services:
       # PRODUCTION: Có thể giữ nguyên hoặc đổi hostname nếu dùng service riêng
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_pw@hub_postgres:5432/bot_db
       REDIS_URL: redis://hub_redis:6379/0
-      # QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: http://hub_qdrant:6333
       PYTHONPATH: /app
     # depends_on:
       # LOCAL: Sử dụng services từ infra (postgres, redis) - không cần depends_on vì dùng external network
@@ -238,7 +238,7 @@ networks:
   shared_net:
     external: true
     name: hub_shared_net
-  
+
   # PRODUCTION: Uncomment để tạo network riêng
   # bot_network:
   #   driver: bridge

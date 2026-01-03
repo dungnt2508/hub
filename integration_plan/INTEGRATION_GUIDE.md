@@ -508,7 +508,7 @@ curl -X POST https://bot.yourdomain.com/embed/init \
 curl https://bot.yourdomain.com/health
 
 # Should return:
-# {"status":"healthy","service":"pnj-hub-router","redis":"healthy"}
+# {"status":"healthy","service":"hub-bot-router","redis":"healthy"}
 ```
 
 ### Rate Limit Exceeded

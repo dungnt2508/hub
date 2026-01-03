@@ -71,8 +71,7 @@ class CatalogWebhookHandler:
             
             elif event in ["created", "updated"]:
                 # Fetch product from catalog and sync
-                # Task 4.2: Pass tenant_id to get_product (required)
-                product = await self.catalog_client.get_product(product_id, tenant_id=tenant_id)
+                product = await self.catalog_client.get_product(product_id)
                 
                 if not product:
                     logger.warning(

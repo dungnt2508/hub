@@ -91,10 +91,9 @@ class CatalogKnowledgeSyncService:
                 error_message=None,
             )
             
-            # Fetch all products from catalog (Priority 2: filter by tenant_id)
+            # Fetch all products from catalog
             logger.info(f"Fetching products for tenant {tenant_id}")
             products = await self.catalog_client.get_all_products(
-                tenant_id=tenant_id,  # Priority 2: Pass tenant_id to filter products
                 status="published",
                 review_status="approved",
             )

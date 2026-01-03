@@ -58,22 +58,28 @@ class RouterOrchestrator:
         Raises:
             RouterError: If routing fails
         """
-        # Task 7.2: Validate tenant_id
-        if not request.tenant_id or not request.tenant_id.strip():
-            raise RouterError("tenant_id is required in RouterRequest")
-        
         trace_id = str(uuid.uuid4())
         trace = RouterTrace(trace_id=trace_id)
+        
+        # Extract tenant_id from metadata if available
+        tenant_id = None
+        if request.metadata:
+            tenant_id_str = request.metadata.get("tenant_id")
+            if tenant_id_str:
+                try:
+                    tenant_id = uuid.UUID(tenant_id_str)
+                except (ValueError, AttributeError):
+                    pass
         
         try:
             logger.info(
                 "Router request received",
                 extra={
                     "trace_id": trace_id,
-                    "tenant_id": request.tenant_id,
                     "user_id": request.user_id,
                     "session_id": request.session_id,
                     "message_length": len(request.raw_message),
+                    "tenant_id": str(tenant_id) if tenant_id else None,
                 }
             )
             
@@ -89,12 +95,12 @@ class RouterOrchestrator:
                 return self._build_meta_response(trace_id, meta_result, trace)
             
             # STEP 2: Global pattern match
-            pattern_result = await self._step_2_pattern(normalized, trace)
+            pattern_result = await self._step_2_pattern(normalized, trace, tenant_id)
             if pattern_result.get("matched"):
                 return self._build_routed_response(trace_id, pattern_result, trace)
             
             # STEP 3: Keyword hint
-            boost = await self._step_3_keyword(normalized, trace)
+            boost = await self._step_3_keyword(normalized, trace, tenant_id)
             
             # STEP 4: Embedding classifier
             embedding_result = await self._step_4_embedding(normalized, boost, trace)
@@ -190,12 +196,12 @@ class RouterOrchestrator:
             logger.error(f"Meta step failed: {e}", extra={"trace_id": trace.trace_id}, exc_info=True)
             return {"handled": False}
     
-    async def _step_2_pattern(self, normalized, trace):
+    async def _step_2_pattern(self, normalized, trace, tenant_id: Optional[uuid.UUID] = None):
         """STEP 2: Global pattern match"""
         start_time = datetime.utcnow()
         
         try:
-            result = await self.pattern_step.execute(normalized.normalized_message)
+            result = await self.pattern_step.execute(normalized.normalized_message, tenant_id)
             duration_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             
             trace.add_span(
@@ -212,12 +218,12 @@ class RouterOrchestrator:
             logger.error(f"Pattern step failed: {e}", extra={"trace_id": trace.trace_id}, exc_info=True)
             return {"matched": False}
     
-    async def _step_3_keyword(self, normalized, trace):
+    async def _step_3_keyword(self, normalized, trace, tenant_id: Optional[uuid.UUID] = None):
         """STEP 3: Keyword hint"""
         start_time = datetime.utcnow()
         
         try:
-            result = await self.keyword_step.execute(normalized.normalized_message)
+            result = await self.keyword_step.execute(normalized.normalized_message, tenant_id)
             duration_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             
             trace.add_span(

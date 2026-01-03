@@ -342,7 +342,7 @@ Origin: https://customer.com
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "expiresIn": 300,
     "botConfig": {
-      "name": "PNJ HR Assistant",
+      "name": "HR Assistant",
       "avatar": "https://...",
       "theme": { "primaryColor": "#007bff" }
     }

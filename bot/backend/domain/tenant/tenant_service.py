@@ -10,14 +10,13 @@ import uuid
 import secrets
 import hashlib
 
-from backend.schemas.multi_tenant_types import TenantConfig, PlanType
-from backend.shared.logger import logger
-from backend.shared.exceptions import (
+from ..schemas.multi_tenant_types import TenantConfig, PlanType
+from ..shared.logger import logger
+from ..shared.exceptions import (
     TenantNotFoundError,
     TenantAlreadyExistsError,
     ValidationError,
 )
-from backend.domain.tenant.audit_service import TenantAuditService
 
 
 class TenantService:
@@ -40,7 +39,6 @@ class TenantService:
             db_connection: PostgreSQL connection pool
         """
         self.db = db_connection
-        self.audit_service = TenantAuditService(db_connection)
         logger.info("TenantService initialized")
     
     async def create_tenant(
@@ -106,13 +104,12 @@ class TenantService:
                 web_embed_enabled, web_embed_origins, web_embed_jwt_secret,
                 web_embed_token_expiry_seconds,
                 telegram_enabled, teams_enabled,
-                is_active,
                 created_at, updated_at
             ) VALUES (
                 $1, $2, $3, $4,
                 $5, $6, $7, $8,
-                $9, $10, $11,
-                $12, $13
+                $9, $10,
+                $11, $12
             )
             RETURNING id, name, api_key, plan, created_at;
             """
@@ -130,66 +127,28 @@ class TenantService:
                 # Channels
                 telegram_enabled,
                 teams_enabled,
-                # Status
-                True,  # is_active - new tenants are active by default
                 # Timestamps
                 datetime.now(),
                 datetime.now(),
             )
             
-            # Execute tenant creation
+            # Execute
             result = await self.db.fetchrow(query, *values)
-            
-            # Priority 1 Fix: Create site_id mapping in tenant_sites table
-            import uuid as uuid_lib
-            site_mapping_id = str(uuid_lib.uuid4())
-            site_mapping_query = """
-            INSERT INTO tenant_sites (id, tenant_id, site_id, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            """
-            await self.db.execute(
-                site_mapping_query,
-                site_mapping_id,
-                tenant_id,
-                site_id,
-                True,  # is_active
-                datetime.now(),
-                datetime.now(),
-            )
             
             logger.info(
                 f"✅ Tenant created: {tenant_id} (site_id: {site_id}, plan: {plan})"
             )
             
-            # Priority 2: Audit log tenant creation
-            await self.audit_service.log_operation(
-                tenant_id=tenant_id,
-                operation="create",
-                resource_type="tenant",
-                resource_id=tenant_id,
-                channel="api",
-                metadata={
-                    "site_id": site_id,
-                    "name": name,
-                    "plan": plan,
-                    "telegram_enabled": telegram_enabled,
-                    "teams_enabled": teams_enabled,
-                }
-            )
-            
-            # Convert UUID to string for JSON serialization
-            tenant_id_str = str(result['id']) if result['id'] else tenant_id
-            
             return {
                 "success": True,
                 "data": {
-                    "tenant_id": tenant_id_str,
+                    "tenant_id": result['id'],
                     "site_id": site_id,
                     "name": result['name'],
                     "api_key": result['api_key'],
                     "jwt_secret": jwt_secret,
                     "plan": result['plan'],
-                    "created_at": result['created_at'].isoformat() if result['created_at'] else None,
+                    "created_at": result['created_at'].isoformat(),
                 }
             }
         
@@ -254,69 +213,28 @@ class TenantService:
         """
         Get tenant by site_id (for embed initialization).
         
-        Priority 1 Fix: Query tenant_sites mapping table to resolve tenant_id from site_id.
-        
         Args:
             site_id: Site identifier
         
         Returns:
-            Tenant record with tenant_id, or None if not found
+            Tenant record or None
         """
         try:
-            # First, try to resolve via tenant_sites mapping table
-            query_site_mapping = """
-            SELECT ts.tenant_id, ts.is_active
-            FROM tenant_sites ts
-            WHERE ts.site_id = $1 AND ts.is_active = true
+            # TODO: Implement site_id → tenant_id mapping table
+            # For now: assume site_id == some tenant reference
+            # In production: need mapping table
+            query = """
+            SELECT id, name, web_embed_origins, web_embed_jwt_secret
+            FROM tenants
+            WHERE id = $1 OR name = $2
             LIMIT 1
             """
             
-            site_row = await self.db.fetchrow(query_site_mapping, site_id)
-            
-            if not site_row:
-                logger.warning(f"Site ID not found in tenant_sites mapping: {site_id}")
-                return None
-            
-            tenant_id = str(site_row['tenant_id'])
-            
-            # Get full tenant config
-            query_tenant = """
-            SELECT id, name, web_embed_origins, web_embed_jwt_secret, 
-                   web_embed_enabled, is_active, plan
-            FROM tenants
-            WHERE id = $1 AND is_active = true
-            """
-            
-            tenant_row = await self.db.fetchrow(query_tenant, tenant_id)
-            if not tenant_row:
-                logger.warning(f"Tenant not found or inactive: {tenant_id}")
-                return None
-            
-            return dict(tenant_row)
+            row = await self.db.fetchrow(query, site_id, site_id)
+            return dict(row) if row else None
         
         except Exception as e:
             logger.error(f"Error fetching tenant by site_id: {e}", exc_info=True)
-            return None
-    
-    async def resolve_tenant_id_from_site_id(self, site_id: str) -> Optional[str]:
-        """
-        Resolve tenant_id from site_id via database lookup.
-        
-        Priority 1 Fix: Proper tenant resolution from site_id.
-        
-        Args:
-            site_id: Site identifier
-        
-        Returns:
-            Tenant UUID if found and active, None otherwise
-        """
-        try:
-            tenant = await self.get_tenant_by_site_id(site_id)
-            if tenant:
-                return str(tenant['id'])
-            return None
-        except Exception as e:
-            logger.error(f"Error resolving tenant_id from site_id: {e}", exc_info=True)
             return None
     
     async def update_tenant(
@@ -379,19 +297,6 @@ class TenantService:
                 return False
             
             logger.info(f"✅ Tenant updated: {tenant_id}")
-            
-            # Priority 2: Audit log tenant update
-            await self.audit_service.log_operation(
-                tenant_id=tenant_id,
-                operation="update",
-                resource_type="tenant",
-                resource_id=tenant_id,
-                channel="api",
-                metadata={
-                    "updated_fields": list(updates.keys()),
-                }
-            )
-            
             return True
         
         except Exception as e:
@@ -531,40 +436,6 @@ class TenantService:
         
         except Exception as e:
             logger.error(f"Error verifying API key: {e}", exc_info=True)
-            return None
-    
-    async def resolve_tenant_id_from_telegram_bot_token(self, bot_token: str) -> Optional[str]:
-        """
-        Resolve tenant_id from Telegram bot token.
-        
-        Task 3.3: Map bot token to tenant_id from database.
-        
-        Args:
-            bot_token: Telegram bot token
-        
-        Returns:
-            Tenant UUID if found and active, None otherwise
-        """
-        try:
-            query = """
-            SELECT id, is_active, telegram_enabled
-            FROM tenants
-            WHERE telegram_bot_token = $1 AND is_active = true AND telegram_enabled = true
-            LIMIT 1
-            """
-            
-            row = await self.db.fetchrow(query, bot_token)
-            
-            if not row:
-                logger.warning(f"Telegram bot token not found or tenant inactive: {bot_token[:8]}...")
-                return None
-            
-            tenant_id = str(row['id'])
-            logger.debug(f"Resolved tenant_id from Telegram bot token: {tenant_id}")
-            return tenant_id
-        
-        except Exception as e:
-            logger.error(f"Error resolving tenant_id from Telegram bot token: {e}", exc_info=True)
             return None
 
 

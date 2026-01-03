@@ -1,5 +1,5 @@
 """
-Startup script for PNJ Hub
+Startup script for Hub Bot
 """
 import asyncio
 import sys
@@ -73,7 +73,7 @@ async def check_dependencies():
 
 def main():
     """Main startup function"""
-    logger.info("Starting PNJ Hub - Global Router System")
+    logger.info("Starting Hub Bot - Global Router System")
     logger.info(f"Configuration: {config.to_dict()}")
     
     # Check dependencies

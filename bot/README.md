@@ -1,4 +1,4 @@
-# PNJ Hub - Global Router System
+# Hub Bot - Global Router System
 
 Hệ thống routing thông minh với kiến trúc 3 tầng tách biệt: Interface Layer → Global Router → Domain Engines.
 
@@ -29,7 +29,7 @@ Domain Engines (Business Systems)
 ```bash
 # Clone repository
 git clone <repo-url>
-cd pnj-hub
+cd hub
 
 # Copy environment file
 cp env.example .env
@@ -71,7 +71,7 @@ curl -X POST http://localhost:8386/api/v1/router/route \
 ## 📁 Cấu trúc Project
 
 ```
-pnj-hub/
+bot/
 ├── backend/
 │   ├── router/              # Router Orchestrator
 │   │   ├── orchestrator.py   # Main router
