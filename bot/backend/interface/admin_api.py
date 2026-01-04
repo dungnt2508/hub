@@ -2,7 +2,7 @@
 Admin API - FastAPI endpoints for admin dashboard
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel
 
@@ -28,30 +28,23 @@ from ..schemas.admin_config_types import (
     GuardrailResponse,
     TestSandboxRequest,
     TestSandboxResponse,
+    AuditLogResponse,
 )
 from ..domain.admin.admin_config_service import admin_config_service
+from ..domain.admin.admin_user_service import admin_user_service
+from ..domain.admin.admin_auth_service import admin_auth_service
+from ..interface.middleware.admin_auth import (
+    get_current_admin_user,
+    require_admin,
+    require_admin_or_operator,
+    require_any_role,
+)
 from ..shared.logger import logger
 from ..shared.exceptions import NotFoundError, ValidationError
 
 
 # Create router
 router = APIRouter(prefix="/api/admin/v1", tags=["admin"])
-
-
-# ==================== Authentication Dependency ====================
-# TODO: Implement proper RBAC authentication
-async def get_current_admin_user() -> dict:
-    """
-    Get current admin user from JWT token.
-    Placeholder - implement proper authentication.
-    """
-    # For now, return a mock admin user
-    return {
-        "id": UUID("00000000-0000-0000-0000-000000000001"),
-        "email": "admin@example.com",
-        "role": "admin",
-        "tenant_id": None,
-    }
 
 
 # ==================== Pattern Rules ====================
@@ -62,7 +55,7 @@ async def list_pattern_rules(
     enabled: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_any_role),
 ):
     """List pattern rules"""
     try:
@@ -81,7 +74,7 @@ async def list_pattern_rules(
 @router.post("/pattern-rules", response_model=PatternRuleResponse, status_code=201)
 async def create_pattern_rule(
     rule: PatternRuleCreate,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin_or_operator),
 ):
     """Create pattern rule"""
     try:
@@ -117,7 +110,7 @@ async def get_pattern_rule(
 async def update_pattern_rule(
     rule_id: UUID,
     rule: PatternRuleUpdate,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin_or_operator),
 ):
     """Update pattern rule"""
     try:
@@ -139,11 +132,11 @@ async def update_pattern_rule(
 @router.delete("/pattern-rules/{rule_id}", status_code=204)
 async def delete_pattern_rule(
     rule_id: UUID,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin),
 ):
     """Delete pattern rule"""
     try:
-        await admin_config_service.delete_pattern_rule(rule_id)
+        await admin_config_service.delete_pattern_rule(rule_id, changed_by=current_user["id"])
         return None
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -159,7 +152,7 @@ async def enable_pattern_rule(
 ):
     """Enable pattern rule"""
     try:
-        result = await admin_config_service.enable_pattern_rule(rule_id)
+        result = await admin_config_service.enable_pattern_rule(rule_id, changed_by=current_user["id"])
         return result
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -175,7 +168,7 @@ async def disable_pattern_rule(
 ):
     """Disable pattern rule"""
     try:
-        result = await admin_config_service.disable_pattern_rule(rule_id)
+        result = await admin_config_service.disable_pattern_rule(rule_id, changed_by=current_user["id"])
         return result
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -192,7 +185,7 @@ async def list_keyword_hints(
     enabled: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_any_role),
 ):
     """List keyword hints"""
     try:
@@ -211,7 +204,7 @@ async def list_keyword_hints(
 @router.post("/keyword-hints", response_model=KeywordHintResponse, status_code=201)
 async def create_keyword_hint(
     hint: KeywordHintCreate,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin_or_operator),
 ):
     """Create keyword hint"""
     try:
@@ -230,7 +223,7 @@ async def create_keyword_hint(
 @router.get("/keyword-hints/{hint_id}", response_model=KeywordHintResponse)
 async def get_keyword_hint(
     hint_id: UUID,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_any_role),
 ):
     """Get keyword hint by ID"""
     try:
@@ -247,7 +240,7 @@ async def get_keyword_hint(
 async def update_keyword_hint(
     hint_id: UUID,
     hint: KeywordHintUpdate,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin_or_operator),
 ):
     """Update keyword hint"""
     try:
@@ -269,11 +262,11 @@ async def update_keyword_hint(
 @router.delete("/keyword-hints/{hint_id}", status_code=204)
 async def delete_keyword_hint(
     hint_id: UUID,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin),
 ):
     """Delete keyword hint"""
     try:
-        await admin_config_service.delete_keyword_hint(hint_id)
+        await admin_config_service.delete_keyword_hint(hint_id, changed_by=current_user["id"])
         return None
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -287,7 +280,7 @@ async def delete_keyword_hint(
 @router.post("/test-sandbox", response_model=TestSandboxResponse)
 async def test_sandbox(
     request: TestSandboxRequest,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_any_role),
 ):
     """Test routing with trace"""
     try:
@@ -358,7 +351,7 @@ async def list_routing_rules(
     enabled: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_any_role),
 ):
     """List routing rules"""
     try:
@@ -377,7 +370,7 @@ async def list_routing_rules(
 @router.post("/routing-rules", response_model=RoutingRuleResponse, status_code=201)
 async def create_routing_rule(
     rule: RoutingRuleCreate,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin_or_operator),
 ):
     """Create routing rule"""
     try:
@@ -396,7 +389,7 @@ async def create_routing_rule(
 @router.get("/routing-rules/{rule_id}", response_model=RoutingRuleResponse)
 async def get_routing_rule(
     rule_id: UUID,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_any_role),
 ):
     """Get routing rule by ID"""
     try:
@@ -413,7 +406,7 @@ async def get_routing_rule(
 async def update_routing_rule(
     rule_id: UUID,
     rule: RoutingRuleUpdate,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin_or_operator),
 ):
     """Update routing rule"""
     try:
@@ -435,11 +428,11 @@ async def update_routing_rule(
 @router.delete("/routing-rules/{rule_id}", status_code=204)
 async def delete_routing_rule(
     rule_id: UUID,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(require_admin),
 ):
     """Delete routing rule"""
     try:
-        await admin_config_service.delete_routing_rule(rule_id)
+        await admin_config_service.delete_routing_rule(rule_id, changed_by=current_user["id"])
         return None
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -580,7 +573,7 @@ async def delete_prompt_template(
 ):
     """Delete prompt template (all versions)"""
     try:
-        await admin_config_service.delete_prompt_template(template_id)
+        await admin_config_service.delete_prompt_template(template_id, changed_by=current_user["id"])
         return None
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -680,7 +673,7 @@ async def delete_tool_permission(
 ):
     """Delete tool permission"""
     try:
-        await admin_config_service.delete_tool_permission(permission_id)
+        await admin_config_service.delete_tool_permission(permission_id, changed_by=current_user["id"])
         return None
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -780,11 +773,229 @@ async def delete_guardrail(
 ):
     """Delete guardrail"""
     try:
-        await admin_config_service.delete_guardrail(guardrail_id)
+        await admin_config_service.delete_guardrail(guardrail_id, changed_by=current_user["id"])
         return None
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting guardrail: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Authentication ====================
+
+class LoginRequest(BaseModel):
+    """Login request"""
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    """Login response"""
+    user: Dict[str, Any]
+    token: str
+    expires_in: int
+
+
+@router.post("/auth/login", response_model=LoginResponse)
+async def login(request: LoginRequest):
+    """Login and get JWT token"""
+    try:
+        result = await admin_auth_service.login(request.email, request.password)
+        return result
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in login: {e}", exc_info=True)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+
+@router.get("/auth/me", response_model=dict)
+async def get_current_user(
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """Get current authenticated user"""
+    return current_user
+
+
+# ==================== Admin Users ====================
+
+class AdminUserCreate(BaseModel):
+    """Create admin user request"""
+    email: str
+    password: str
+    role: str  # 'admin' | 'operator' | 'viewer'
+    tenant_id: Optional[UUID] = None
+    permissions: Optional[Dict[str, Any]] = None
+
+
+class AdminUserUpdate(BaseModel):
+    """Update admin user request"""
+    email: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+    permissions: Optional[Dict[str, Any]] = None
+    active: Optional[bool] = None
+
+
+@router.get("/admin-users", response_model=dict)
+async def list_admin_users(
+    tenant_id: Optional[UUID] = Query(None),
+    role: Optional[str] = Query(None),
+    active: Optional[bool] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(require_admin),
+):
+    """List admin users (admin only)"""
+    try:
+        result = await admin_user_service.list_admin_users(
+            tenant_id=tenant_id,
+            role=role,
+            active=active,
+            limit=limit,
+            offset=offset,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error listing admin users: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/admin-users", response_model=dict, status_code=201)
+async def create_admin_user(
+    user: AdminUserCreate,
+    current_user: dict = Depends(require_admin),
+):
+    """Create admin user (admin only)"""
+    try:
+        result = await admin_user_service.create_admin_user(
+            email=user.email,
+            password=user.password,
+            role=user.role,
+            tenant_id=user.tenant_id,
+            permissions=user.permissions,
+        )
+        return result
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating admin user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin-users/{user_id}", response_model=dict)
+async def get_admin_user(
+    user_id: UUID,
+    current_user: dict = Depends(require_admin),
+):
+    """Get admin user by ID (admin only)"""
+    try:
+        result = await admin_user_service.get_admin_user(user_id)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting admin user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/admin-users/{user_id}", response_model=dict)
+async def update_admin_user(
+    user_id: UUID,
+    user: AdminUserUpdate,
+    current_user: dict = Depends(require_admin),
+):
+    """Update admin user (admin only)"""
+    try:
+        result = await admin_user_service.update_admin_user(
+            user_id=user_id,
+            email=user.email,
+            password=user.password,
+            role=user.role,
+            permissions=user.permissions,
+            active=user.active,
+        )
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating admin user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/admin-users/{user_id}", status_code=204)
+async def delete_admin_user(
+    user_id: UUID,
+    current_user: dict = Depends(require_admin),
+):
+    """Delete admin user (admin only)"""
+    try:
+        # Prevent self-deletion
+        if user_id == current_user["id"]:
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+        await admin_user_service.delete_admin_user(user_id)
+        return None
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error deleting admin user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Audit Logs ====================
+
+@router.get("/audit-logs", response_model=dict)
+async def list_audit_logs(
+    tenant_id: Optional[UUID] = Query(None),
+    config_type: Optional[str] = Query(None),
+    config_id: Optional[UUID] = Query(None),
+    changed_by: Optional[UUID] = Query(None),
+    start_date: Optional[str] = Query(None, description="ISO format datetime"),
+    end_date: Optional[str] = Query(None, description="ISO format datetime"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """List audit logs"""
+    try:
+        from datetime import datetime
+        
+        start_dt = None
+        end_dt = None
+        
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO format.")
+        
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO format.")
+        
+        from ..domain.admin.audit_log_service import audit_log_service
+        
+        result = await audit_log_service.list_audit_logs(
+            tenant_id=tenant_id,
+            config_type=config_type,
+            config_id=config_id,
+            changed_by=changed_by,
+            start_date=start_dt,
+            end_date=end_dt,
+            limit=limit,
+            offset=offset,
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing audit logs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -57,10 +57,14 @@
 #### Test Sandbox
 - ✅ `POST /api/admin/v1/test-sandbox` - Test routing với trace
 
+#### Audit Logs
+- ✅ `GET /api/admin/v1/audit-logs` - List audit logs với filters
+
 **Features:**
 - ✅ FastAPI router với proper typing
 - ✅ Query parameters cho filtering
 - ✅ Pagination support (limit/offset)
+- ✅ Audit logging tự động cho mọi config changes
 - ✅ Error handling với HTTP status codes
 - ✅ Response models với Pydantic
 

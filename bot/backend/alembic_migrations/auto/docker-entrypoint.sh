@@ -32,6 +32,14 @@ while [ $attempt -lt $max_attempts ]; do
     fi
 done
 
+# Create default admin user
+echo -e "${YELLOW}[Entrypoint] Creating default admin user...${NC}"
+if python -m backend.alembic_migrations.auto.create_default_admin; then
+    echo -e "${GREEN}[Entrypoint] Default admin user check completed!${NC}"
+else
+    echo -e "${YELLOW}[Entrypoint] Warning: Failed to create default admin user (may already exist)${NC}"
+fi
+
 # Execute the main command (passed as arguments to this script)
 echo -e "${GREEN}[Entrypoint] Starting application...${NC}"
 exec "$@"

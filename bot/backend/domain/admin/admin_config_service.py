@@ -10,6 +10,7 @@ from ...shared.logger import logger
 from ...shared.exceptions import NotFoundError, ValidationError
 from ...infrastructure.database_client import database_client
 from ...infrastructure.config_loader import config_loader
+from .audit_log_service import audit_log_service
 from ...schemas.admin_config_types import (
     PatternRuleCreate,
     PatternRuleUpdate,
@@ -38,6 +39,7 @@ class AdminConfigService:
     def __init__(self):
         self.db = database_client
         self.config_loader = config_loader
+        self.audit_log = audit_log_service
     
     # ==================== Pattern Rules ====================
     
@@ -86,7 +88,19 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("pattern_rules", rule.tenant_id)
         
-        return self._pattern_rule_from_row(row)
+        # Audit log
+        result = self._pattern_rule_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="pattern_rule",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def get_pattern_rule(self, rule_id: UUID) -> PatternRuleResponse:
         """Get pattern rule by ID"""
@@ -255,11 +269,27 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("pattern_rules", existing.tenant_id)
         
-        return self._pattern_rule_from_row(row)
+        # Audit log
+        result = self._pattern_rule_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="pattern_rule",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
-    async def delete_pattern_rule(self, rule_id: UUID):
+    async def delete_pattern_rule(self, rule_id: UUID, changed_by: Optional[UUID] = None):
         """Delete pattern rule"""
         existing = await self.get_pattern_rule(rule_id)
+        
+        if changed_by is None:
+            changed_by = UUID("00000000-0000-0000-0000-000000000001")  # TODO: Get from context
         
         pool = self.db.pool
         async with pool.acquire() as conn:
@@ -270,22 +300,69 @@ class AdminConfigService:
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("pattern_rules", existing.tenant_id)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="pattern_rule",
+            config_id=rule_id,
+            config_name=existing.rule_name,
+            action="delete",
+            changed_by=changed_by,
+            old_value=existing.dict(),
+            tenant_id=existing.tenant_id,
+        )
     
-    async def enable_pattern_rule(self, rule_id: UUID) -> PatternRuleResponse:
+    async def enable_pattern_rule(self, rule_id: UUID, changed_by: Optional[UUID] = None) -> PatternRuleResponse:
         """Enable pattern rule"""
-        return await self.update_pattern_rule(
+        if changed_by is None:
+            changed_by = uuid4()  # TODO: Get from auth context
+        
+        existing = await self.get_pattern_rule(rule_id)
+        result = await self.update_pattern_rule(
             rule_id,
             PatternRuleUpdate(enabled=True),
-            uuid4()  # TODO: Get from auth context
+            changed_by
         )
+        
+        # Additional audit log for enable action
+        await self.audit_log.log_config_change(
+            config_type="pattern_rule",
+            config_id=rule_id,
+            config_name=existing.rule_name,
+            action="enable",
+            changed_by=changed_by,
+            old_value={"enabled": False},
+            new_value={"enabled": True},
+            tenant_id=existing.tenant_id,
+        )
+        
+        return result
     
-    async def disable_pattern_rule(self, rule_id: UUID) -> PatternRuleResponse:
+    async def disable_pattern_rule(self, rule_id: UUID, changed_by: Optional[UUID] = None) -> PatternRuleResponse:
         """Disable pattern rule"""
-        return await self.update_pattern_rule(
+        if changed_by is None:
+            changed_by = uuid4()  # TODO: Get from auth context
+        
+        existing = await self.get_pattern_rule(rule_id)
+        result = await self.update_pattern_rule(
             rule_id,
             PatternRuleUpdate(enabled=False),
-            uuid4()  # TODO: Get from auth context
+            changed_by
         )
+        
+        # Additional audit log for disable action
+        await self.audit_log.log_config_change(
+            config_type="pattern_rule",
+            config_id=rule_id,
+            config_name=existing.rule_name,
+            action="disable",
+            changed_by=changed_by,
+            old_value={"enabled": True},
+            new_value={"enabled": False},
+            tenant_id=existing.tenant_id,
+        )
+        
+        return result
     
     def _pattern_rule_from_row(self, row) -> PatternRuleResponse:
         """Convert database row to PatternRuleResponse"""
@@ -351,7 +428,19 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("keyword_hints", hint.tenant_id)
         
-        return self._keyword_hint_from_row(row)
+        # Audit log
+        result = self._keyword_hint_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="keyword_hint",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def get_keyword_hint(self, hint_id: UUID) -> KeywordHintResponse:
         """Get keyword hint by ID"""
@@ -488,11 +577,27 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("keyword_hints", existing.tenant_id)
         
-        return self._keyword_hint_from_row(row)
+        # Audit log
+        result = self._keyword_hint_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="keyword_hint",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
-    async def delete_keyword_hint(self, hint_id: UUID):
+    async def delete_keyword_hint(self, hint_id: UUID, changed_by: Optional[UUID] = None):
         """Delete keyword hint"""
         existing = await self.get_keyword_hint(hint_id)
+        
+        if changed_by is None:
+            changed_by = UUID("00000000-0000-0000-0000-000000000001")  # TODO: Get from context
         
         pool = self.db.pool
         async with pool.acquire() as conn:
@@ -503,6 +608,17 @@ class AdminConfigService:
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("keyword_hints", existing.tenant_id)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="keyword_hint",
+            config_id=hint_id,
+            config_name=existing.rule_name,
+            action="delete",
+            changed_by=changed_by,
+            old_value=existing.dict(),
+            tenant_id=existing.tenant_id,
+        )
     
     def _keyword_hint_from_row(self, row) -> KeywordHintResponse:
         """Convert database row to KeywordHintResponse"""
@@ -567,7 +683,19 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("routing_rules", rule.tenant_id)
         
-        return self._routing_rule_from_row(row)
+        # Audit log
+        result = self._routing_rule_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="routing_rule",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def get_routing_rule(self, rule_id: UUID) -> RoutingRuleResponse:
         """Get routing rule by ID"""
@@ -726,11 +854,27 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("routing_rules", existing.tenant_id)
         
-        return self._routing_rule_from_row(row)
+        # Audit log
+        result = self._routing_rule_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="routing_rule",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
-    async def delete_routing_rule(self, rule_id: UUID):
+    async def delete_routing_rule(self, rule_id: UUID, changed_by: Optional[UUID] = None):
         """Delete routing rule"""
         existing = await self.get_routing_rule(rule_id)
+        
+        if changed_by is None:
+            changed_by = UUID("00000000-0000-0000-0000-000000000001")  # TODO: Get from context
         
         pool = self.db.pool
         async with pool.acquire() as conn:
@@ -741,6 +885,17 @@ class AdminConfigService:
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("routing_rules", existing.tenant_id)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="routing_rule",
+            config_id=rule_id,
+            config_name=existing.rule_name,
+            action="delete",
+            changed_by=changed_by,
+            old_value=existing.dict(),
+            tenant_id=existing.tenant_id,
+        )
     
     def _routing_rule_from_row(self, row) -> RoutingRuleResponse:
         """Convert database row to RoutingRuleResponse"""
@@ -807,7 +962,19 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("prompt_templates", template.tenant_id)
         
-        return self._prompt_template_from_row(row)
+        # Audit log
+        result = self._prompt_template_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="prompt_template",
+            config_id=result.id,
+            config_name=result.template_name,
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def get_prompt_template(self, template_id: UUID) -> PromptTemplateResponse:
         """Get prompt template by ID"""
@@ -951,7 +1118,20 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("prompt_templates", existing.tenant_id)
         
-        return self._prompt_template_from_row(row)
+        # Audit log
+        result = self._prompt_template_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="prompt_template",
+            config_id=result.id,
+            config_name=result.template_name,
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def list_template_versions(
         self,
@@ -1031,11 +1211,28 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("prompt_templates", existing.tenant_id)
         
-        return self._prompt_template_from_row(target_row)
+        # Audit log
+        result = self._prompt_template_from_row(target_row)
+        await self.audit_log.log_config_change(
+            config_type="prompt_template",
+            config_id=result.id,
+            config_name=result.template_name,
+            action="rollback",
+            changed_by=updated_by,
+            old_value={"version": existing.version},
+            new_value={"version": target_version},
+            tenant_id=result.tenant_id,
+            reason=f"Rollback to version {target_version}",
+        )
+        
+        return result
     
-    async def delete_prompt_template(self, template_id: UUID):
+    async def delete_prompt_template(self, template_id: UUID, changed_by: Optional[UUID] = None):
         """Delete prompt template (all versions)"""
         existing = await self.get_prompt_template(template_id)
+        
+        if changed_by is None:
+            changed_by = UUID("00000000-0000-0000-0000-000000000001")  # TODO: Get from context
         
         pool = self.db.pool
         async with pool.acquire() as conn:
@@ -1050,6 +1247,17 @@ class AdminConfigService:
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("prompt_templates", existing.tenant_id)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="prompt_template",
+            config_id=template_id,
+            config_name=existing.template_name,
+            action="delete",
+            changed_by=changed_by,
+            old_value=existing.dict(),
+            tenant_id=existing.tenant_id,
+        )
     
     def _prompt_template_from_row(self, row) -> PromptTemplateResponse:
         """Convert database row to PromptTemplateResponse"""
@@ -1114,7 +1322,19 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("tool_permissions", permission.tenant_id)
         
-        return self._tool_permission_from_row(row)
+        # Audit log
+        result = self._tool_permission_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="tool_permission",
+            config_id=result.id,
+            config_name=f"{result.agent_name}.{result.tool_name}",
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def get_tool_permission(self, permission_id: UUID) -> ToolPermissionResponse:
         """Get tool permission by ID"""
@@ -1247,11 +1467,27 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("tool_permissions", existing.tenant_id)
         
-        return self._tool_permission_from_row(row)
+        # Audit log
+        result = self._tool_permission_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="tool_permission",
+            config_id=result.id,
+            config_name=f"{result.agent_name}.{result.tool_name}",
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
-    async def delete_tool_permission(self, permission_id: UUID):
+    async def delete_tool_permission(self, permission_id: UUID, changed_by: Optional[UUID] = None):
         """Delete tool permission"""
         existing = await self.get_tool_permission(permission_id)
+        
+        if changed_by is None:
+            changed_by = UUID("00000000-0000-0000-0000-000000000001")  # TODO: Get from context
         
         pool = self.db.pool
         async with pool.acquire() as conn:
@@ -1262,6 +1498,17 @@ class AdminConfigService:
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("tool_permissions", existing.tenant_id)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="tool_permission",
+            config_id=permission_id,
+            config_name=f"{existing.agent_name}.{existing.tool_name}",
+            action="delete",
+            changed_by=changed_by,
+            old_value=existing.dict(),
+            tenant_id=existing.tenant_id,
+        )
     
     def _tool_permission_from_row(self, row) -> ToolPermissionResponse:
         """Convert database row to ToolPermissionResponse"""
@@ -1325,7 +1572,19 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("guardrails", guardrail.tenant_id)
         
-        return self._guardrail_from_row(row)
+        # Audit log
+        result = self._guardrail_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="guardrail",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
     async def get_guardrail(self, guardrail_id: UUID) -> GuardrailResponse:
         """Get guardrail by ID"""
@@ -1483,11 +1742,27 @@ class AdminConfigService:
         # Invalidate cache
         await self.config_loader.invalidate_cache("guardrails", existing.tenant_id)
         
-        return self._guardrail_from_row(row)
+        # Audit log
+        result = self._guardrail_from_row(row)
+        await self.audit_log.log_config_change(
+            config_type="guardrail",
+            config_id=result.id,
+            config_name=result.rule_name,
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=result.tenant_id,
+        )
+        
+        return result
     
-    async def delete_guardrail(self, guardrail_id: UUID):
+    async def delete_guardrail(self, guardrail_id: UUID, changed_by: Optional[UUID] = None):
         """Delete guardrail"""
         existing = await self.get_guardrail(guardrail_id)
+        
+        if changed_by is None:
+            changed_by = UUID("00000000-0000-0000-0000-000000000001")  # TODO: Get from context
         
         pool = self.db.pool
         async with pool.acquire() as conn:
@@ -1498,6 +1773,17 @@ class AdminConfigService:
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("guardrails", existing.tenant_id)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="guardrail",
+            config_id=guardrail_id,
+            config_name=existing.rule_name,
+            action="delete",
+            changed_by=changed_by,
+            old_value=existing.dict(),
+            tenant_id=existing.tenant_id,
+        )
     
     def _guardrail_from_row(self, row) -> GuardrailResponse:
         """Convert database row to GuardrailResponse"""
