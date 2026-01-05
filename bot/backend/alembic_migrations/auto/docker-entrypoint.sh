@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Colors for output
@@ -11,7 +11,7 @@ echo -e "${GREEN}[Entrypoint] Starting bot service...${NC}"
 
 # Run migrations
 echo -e "${YELLOW}[Entrypoint] Running database migrations...${NC}"
-cd /app/backend
+cd /app
 
 # Run migrations with retry logic (in case database is not ready yet)
 max_attempts=5
