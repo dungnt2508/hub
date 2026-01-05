@@ -8,7 +8,7 @@ from typing import Dict, Any, List
 from ...schemas import SessionState
 from ...shared.logger import logger
 from ...shared.config import config
-from ...shared.exceptions import ExternalServiceError
+from ...shared.exceptions import ExternalServiceError, LLMError, RouterTimeoutError
 from ...shared.intent_registry import intent_registry
 from ...infrastructure.ai_provider import AIProvider
 
@@ -44,19 +44,48 @@ class LLMClassifierStep:
         
         try:
             # Build prompt
-            prompt = self._build_classification_prompt(message)
+            try:
+                prompt = self._build_classification_prompt(message)
+            except Exception as e:
+                logger.error(
+                    f"Failed to build LLM prompt: {e}",
+                    exc_info=True
+                )
+                raise LLMError(f"Prompt building failed: {e}") from e
             
             # Call LLM with timeout
-            response_text = await asyncio.wait_for(
-                self.provider.chat(
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=config.LLM_TEMPERATURE
-                ),
-                timeout=config.STEP_LLM_TIMEOUT / 1000.0
-            )
+            try:
+                response_text = await asyncio.wait_for(
+                    self.provider.chat(
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=config.LLM_TEMPERATURE
+                    ),
+                    timeout=config.STEP_LLM_TIMEOUT / 1000.0
+                )
+            except asyncio.TimeoutError as e:
+                logger.error(
+                    f"LLM classification timeout: {e}",
+                    extra={"message_length": len(message)},
+                    exc_info=True
+                )
+                raise RouterTimeoutError(f"LLM timeout after {config.STEP_LLM_TIMEOUT}ms") from e
+            except ExternalServiceError as e:
+                logger.error(
+                    f"LLM provider error: {e}",
+                    exc_info=True
+                )
+                raise LLMError(f"LLM provider failed: {e}") from e
             
             # Parse response
-            result = self._parse_llm_response(response_text)
+            try:
+                result = self._parse_llm_response(response_text)
+            except Exception as e:
+                logger.error(
+                    f"Failed to parse LLM response: {e}",
+                    extra={"response_preview": response_text[:200] if response_text else None},
+                    exc_info=True
+                )
+                raise LLMError(f"LLM response parsing failed: {e}") from e
             
             if result.get("classified"):
                 logger.info(
@@ -70,15 +99,15 @@ class LLMClassifierStep:
             
             return result
             
-        except asyncio.TimeoutError as e:
-            logger.warning(f"LLM classification timeout: {e}")
-            return {"classified": False, "reason": "timeout"}
-        except ExternalServiceError as e:
-            logger.error(f"LLM classification error: {e}", exc_info=True)
-            return {"classified": False, "reason": "provider_error"}
+        except (LLMError, RouterTimeoutError):
+            # Re-raise our custom exceptions
+            raise
         except Exception as e:
-            logger.error(f"LLM classification failed: {e}", exc_info=True)
-            return {"classified": False, "reason": "unknown_error"}
+            logger.error(
+                f"Unexpected LLM classification error: {e}",
+                exc_info=True
+            )
+            raise LLMError(f"Unexpected LLM error: {e}") from e
     
     def _build_classification_prompt(self, message: str) -> str:
         """Build classification prompt for LLM"""

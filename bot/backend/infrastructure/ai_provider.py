@@ -26,43 +26,98 @@ class ProviderType(str, Enum):
 
 
 class CircuitBreaker:
-    """Simple circuit breaker for provider failures"""
+    """
+    Simplified circuit breaker for provider failures.
+    
+    Simple boolean-based circuit breaker (no complex state machine).
+    For low-load scenarios, this is sufficient and easier to debug.
+    """
     
     def __init__(self, failure_threshold: int, timeout: int):
+        """
+        Initialize circuit breaker.
+        
+        Args:
+            failure_threshold: Number of consecutive failures before opening circuit
+            timeout: Seconds to wait before attempting to close circuit again
+        """
         self.failure_threshold = failure_threshold
         self.timeout = timeout
         self.failure_count = 0
         self.last_failure_time: Optional[datetime] = None
-        self.state = "closed"  # closed, open, half_open
+        self.is_circuit_open = False  # Simple boolean flag
+        
+        # Metrics
+        self.total_opens = 0  # Total times circuit has been opened
+        self.total_rejects = 0  # Total requests rejected when circuit is open
     
     def record_success(self):
-        """Record successful request"""
+        """Record successful request - reset circuit breaker"""
         self.failure_count = 0
-        self.state = "closed"
+        self.is_circuit_open = False
+        self.last_failure_time = None
     
     def record_failure(self):
         """Record failed request"""
         self.failure_count += 1
         self.last_failure_time = datetime.utcnow()
+        
         if self.failure_count >= self.failure_threshold:
-            self.state = "open"
-            logger.warning(
-                f"Circuit breaker opened after {self.failure_count} failures"
-            )
+            if not self.is_circuit_open:
+                # Circuit just opened
+                self.total_opens += 1
+                self.is_circuit_open = True
+                logger.warning(
+                    f"Circuit breaker opened after {self.failure_count} failures",
+                    extra={
+                        "failure_count": self.failure_count,
+                        "threshold": self.failure_threshold,
+                        "total_opens": self.total_opens,
+                    }
+                )
     
     def is_open(self) -> bool:
-        """Check if circuit breaker is open"""
-        if self.state == "closed":
+        """
+        Check if circuit breaker is open.
+        
+        Returns:
+            True if circuit is open, False if closed
+        """
+        if not self.is_circuit_open:
             return False
-        elif self.state == "open":
-            # Check if timeout has passed
-            if self.last_failure_time:
-                if datetime.utcnow() - self.last_failure_time > timedelta(seconds=self.timeout):
-                    self.state = "half_open"
-                    return False
-            return True
-        else:  # half_open
-            return False
+        
+        # Circuit is open - check if timeout has passed
+        if self.last_failure_time:
+            time_since_failure = datetime.utcnow() - self.last_failure_time
+            if time_since_failure > timedelta(seconds=self.timeout):
+                # Timeout passed - allow one request to test (circuit closes on success)
+                logger.info(
+                    f"Circuit breaker timeout passed, allowing test request",
+                    extra={
+                        "time_since_failure_seconds": time_since_failure.total_seconds(),
+                        "timeout_seconds": self.timeout,
+                    }
+                )
+                return False
+        
+        # Circuit still open - reject request
+        self.total_rejects += 1
+        return True
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """
+        Get circuit breaker metrics.
+        
+        Returns:
+            Dict with metrics
+        """
+        return {
+            "is_open": self.is_circuit_open,
+            "failure_count": self.failure_count,
+            "total_opens": self.total_opens,
+            "total_rejects": self.total_rejects,
+            "last_failure_time": self.last_failure_time.isoformat() if self.last_failure_time else None,
+        }
 
 
 class AIProvider:

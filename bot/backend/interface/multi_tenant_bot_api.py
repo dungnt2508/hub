@@ -13,6 +13,8 @@ from .middleware.multi_tenant_auth import (
 )
 from .handlers.embed_init_handler import EmbedInitHandler, setup_test_data
 from .api_handler import APIHandler
+from .validators import RequestValidator
+from .auth_resolver import AuthContextResolver
 from ..infrastructure.rate_limiter import RateLimitService
 from ..shared.logger import logger
 from ..shared.exceptions import (
@@ -142,104 +144,56 @@ class MultiTenantBotAPI:
         }
         """
         try:
-            # Parse request body
+            # Parse and validate request body
             try:
-                body = await request.json()
-            except Exception as json_error:
-                logger.warning(f"Failed to parse JSON body: {json_error}")
-                return {
-                    "error": True,
-                    "message": "Invalid JSON in request body",
-                    "status_code": 400
-                }
+                body = await RequestValidator.parse_json_body(request)
+                validated_data = RequestValidator.validate_bot_message_request(body)
+            except InvalidInputError as e:
+                logger.warning(f"Request validation failed: {e}")
+                return APIHandler.format_error_response(
+                    "INVALID_INPUT",
+                    str(e),
+                    status_code=400
+                )
             
-            if not body:
-                return {
-                    "error": True,
-                    "message": "Request body is required",
-                    "status_code": 400
-                }
-            
-            # Extract JWT from Authorization header
-            auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer "):
-                return {
-                    "error": True,
-                    "message": "Missing or invalid Authorization header",
-                    "status_code": 401
-                }
-            
-            token = auth_header[7:]
-            
-            # Extract tenant_id from query param (for now)
-            # In production: could be in JWT or resolved from domain
-            tenant_id = request.query_params.get("tenant_id")
-            if not tenant_id:
-                return {
-                    "error": True,
-                    "message": "Missing tenant_id parameter",
-                    "status_code": 400
-                }
-            
-            # Get origin from header
-            origin = request.headers.get("Origin", "")
-            ip = request.client.host if request.client else None
-            
-            # Resolve context from JWT
+            # Resolve authentication context with rate limiting
             try:
-                context = MultiTenantAuthMiddleware.resolve_context_from_jwt(
-                    token,
-                    tenant_id,
-                    origin,
-                    ip
+                context, rate_status = await AuthContextResolver.resolve_context_with_rate_limit(request)
+            except InvalidInputError as e:
+                logger.warning(f"Missing required parameter: {e}")
+                return APIHandler.format_error_response(
+                    "INVALID_INPUT",
+                    str(e),
+                    status_code=400
                 )
             except AuthenticationError as e:
-                logger.warning(f"JWT verification failed: {e}")
-                return {
-                    "error": True,
-                    "message": str(e),
-                    "status_code": 401
-                }
+                logger.warning(f"Authentication failed: {e}")
+                return APIHandler.format_error_response(
+                    "AUTHENTICATION_ERROR",
+                    str(e),
+                    status_code=401
+                )
             
-            # Check rate limit
-            allowed, rate_status = await RateLimitService.check_rate_limit(
-                context.tenant_id,
-                context.user_key
-            )
-            
-            if not allowed:
+            # Check if rate limit exceeded
+            if rate_status:
                 logger.warning(f"Rate limit exceeded: {rate_status}")
-                return {
-                    "error": True,
-                    "message": "Rate limit exceeded",
-                    "status_code": 429,
-                    "details": rate_status,
-                }
+                return APIHandler.format_error_response(
+                    "RATE_LIMIT_EXCEEDED",
+                    "Rate limit exceeded",
+                    status_code=429,
+                    details=rate_status
+                )
             
-            # Extract message
-            message = body.get("message", "").strip()
-            if not message:
-                return {
-                    "error": True,
-                    "message": "message is required and non-empty",
-                    "status_code": 400
-                }
-            
-            # Get session ID from request or generate from context
-            session_id_raw = body.get("sessionId") or body.get("session_id")
-            
-            # Convert session_id to UUID format if provided (router requires UUID)
-            # Create deterministic UUID from session_id + tenant_id for consistency
+            # Generate session ID
+            session_id_raw = validated_data["session_id"]
             if session_id_raw:
                 session_id = MultiTenantBotAPI._generate_uuid_from_string(
                     f"{context.tenant_id}:{session_id_raw}"
                 )
             else:
-                # Generate new session UUID if not provided
                 session_id = str(uuid.uuid4())
             
-            # Map user_key to UUID for router (create deterministic UUID from user_key)
-            # This ensures consistent user_id for router while maintaining multi-tenant isolation
+            # Map user_key to UUID for router
             user_id = MultiTenantBotAPI._generate_user_id_from_key(
                 context.tenant_id,
                 context.user_key
@@ -248,17 +202,17 @@ class MultiTenantBotAPI:
             # Process message through router
             try:
                 router_response = await self.api_handler.handle_request(
-                    raw_message=message,
+                    raw_message=validated_data["message"],
                     user_id=user_id,
                     session_id=session_id,
                     metadata={
                         "platform": "web_embed",
                         "tenant_id": context.tenant_id,
-                        "channel": context.channel,  # Already a string, no .value needed
+                        "channel": context.channel,
                         "user_key": context.user_key,
                         "origin": context.origin,
                         "ip": context.ip,
-                        "auth_method": context.auth_method,  # Already a string, no .value needed
+                        "auth_method": context.auth_method,
                     }
                 )
                 
@@ -275,41 +229,40 @@ class MultiTenantBotAPI:
                     f"intent: {intent}, confidence: {confidence:.2f}, trace: {trace_id}"
                 )
                 
-                return {
-                    "success": True,
-                    "data": {
+                return APIHandler.format_success_response(
+                    {
                         "messageId": trace_id or f"msg_{datetime.now().timestamp()}",
                         "response": response_text,
                         "intent": intent,
                         "domain": domain,
                         "confidence": confidence,
                         "followUpActions": router_response.get("followUpActions", []),
-                        "traceId": trace_id,
-                    }
-                }
+                    },
+                    trace_id=trace_id
+                )
                 
             except InvalidInputError as e:
                 logger.warning(f"Invalid input in bot_message: {e}")
-                return {
-                    "error": True,
-                    "message": str(e),
-                    "status_code": 400
-                }
+                return APIHandler.format_error_response(
+                    "INVALID_INPUT",
+                    str(e),
+                    status_code=400
+                )
             except RouterError as e:
                 logger.error(f"Router error in bot_message: {e}", exc_info=True)
-                return {
-                    "error": True,
-                    "message": "Xin lỗi, có lỗi xảy ra khi xử lý câu hỏi của bạn.",
-                    "status_code": 500
-                }
+                return APIHandler.format_error_response(
+                    "ROUTER_ERROR",
+                    "Xin lỗi, có lỗi xảy ra khi xử lý câu hỏi của bạn.",
+                    status_code=500
+                )
         
         except Exception as e:
-            logger.error(f"Error in bot_message: {e}", exc_info=True)
-            return {
-                "error": True,
-                "message": "Internal server error",
-                "status_code": 500
-            }
+            logger.error(f"Unexpected error in bot_message: {e}", exc_info=True)
+            return APIHandler.format_error_response(
+                "INTERNAL_ERROR",
+                "Internal server error",
+                status_code=500
+            )
     
     # ========================================================================
     # HELPER METHODS

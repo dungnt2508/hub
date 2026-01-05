@@ -999,3 +999,85 @@ async def list_audit_logs(
         logger.error(f"Error listing audit logs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ==================== Use Cases Discovery ====================
+
+@router.get("/use-cases", response_model=dict)
+async def list_use_cases(
+    domain: Optional[str] = Query(None, description="Filter by domain name"),
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    List available use cases (intents) across all domains.
+    
+    This helps frontend show available intents when creating routing rules,
+    pattern rules, or keyword hints.
+    """
+    try:
+        from ..domain.use_case_registry import use_case_registry
+        
+        if domain:
+            # Get specific domain
+            domain_data = use_case_registry.get_domain(domain)
+            if not domain_data:
+                raise HTTPException(status_code=404, detail=f"Domain not found: {domain}")
+            
+            return {
+                "domain": domain_data,
+                "intents": domain_data.get("intents", []),
+            }
+        else:
+            # Get all domains and intents
+            domains = use_case_registry.get_all_domains()
+            all_intents = use_case_registry.get_all_intents()
+            
+            return {
+                "domains": domains,
+                "intents": all_intents,
+                "total_domains": len(domains),
+                "total_intents": len(all_intents),
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing use cases: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/routing-rules/suggestions", response_model=dict)
+async def get_routing_rule_suggestions(
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Get suggestions for routing rule names based on existing routing rules.
+    
+    This helps frontend suggest rule names when creating pattern rules or keyword hints.
+    """
+    try:
+        # Get all routing rules
+        routing_rules = await admin_config_service.list_routing_rules(
+            limit=100,
+            offset=0,
+        )
+        
+        # Extract rule names and intents
+        suggestions = []
+        for rule in routing_rules.get("items", []):
+            intent_pattern = rule.get("intent_pattern", {})
+            intent = intent_pattern.get("intent")
+            
+            if intent:
+                suggestions.append({
+                    "rule_name": rule.get("rule_name"),
+                    "intent": intent,
+                    "target_domain": rule.get("target_domain"),
+                    "id": str(rule.get("id")),
+                })
+        
+        return {
+            "suggestions": suggestions,
+            "total": len(suggestions),
+        }
+    except Exception as e:
+        logger.error(f"Error getting routing rule suggestions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

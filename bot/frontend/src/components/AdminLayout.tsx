@@ -30,20 +30,34 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    // Load user from localStorage (middleware already checked auth)
     const userStr = localStorage.getItem('admin_user');
     if (userStr) {
-      setUser(JSON.parse(userStr));
+      try {
+        setUser(JSON.parse(userStr));
+      } catch (e) {
+        console.error('Failed to parse user from localStorage', e);
+      }
     } else {
-      // Try to get current user
-      adminConfigService.getCurrentUser().then(setUser).catch(() => {
-        router.push('/login');
-      });
+      // If no user in localStorage, try to fetch from API
+      // This is a fallback - middleware should have already protected the route
+      adminConfigService.getCurrentUser()
+        .then(setUser)
+        .catch(() => {
+          // If API call fails, middleware will handle redirect
+          console.warn('Failed to get current user');
+        });
     }
-  }, [router]);
+  }, []);
 
   const handleLogout = () => {
+    // Clear localStorage
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
+    
+    // Clear cookie
+    document.cookie = 'admin_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
     toast.success('Đã đăng xuất');
     router.push('/login');
   };

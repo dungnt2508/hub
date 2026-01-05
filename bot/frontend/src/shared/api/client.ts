@@ -44,9 +44,30 @@ class ApiClient {
         }
 
         // Format error response
+        let errorMessage = 'An error occurred';
+        const errorData = error.response?.data as any;
+        
+        if (errorData) {
+          // Handle FastAPI validation errors (array of errors)
+          if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail
+              .map((err: any) => `${err.loc?.join('.')}: ${err.msg}`)
+              .join(', ');
+          } else if (errorData.detail) {
+            // Single error detail (string or object)
+            errorMessage = typeof errorData.detail === 'string' 
+              ? errorData.detail 
+              : JSON.stringify(errorData.detail);
+          } else if (errorData.message) {
+            errorMessage = typeof errorData.message === 'string'
+              ? errorData.message
+              : JSON.stringify(errorData.message);
+          }
+        }
+        
         const errorResponse = {
           error: true,
-          message: (error.response?.data as any)?.detail || (error.response?.data as any)?.message || 'An error occurred',
+          message: errorMessage,
           status: error.response?.status,
         };
         return Promise.reject(errorResponse);

@@ -71,3 +71,24 @@ class AuthorizationError(RouterError):
 class TenantNotFoundError(RouterError):
     """Tenant not found"""
     pass
+
+
+# Router Step Exceptions
+class PatternMatchError(RouterError):
+    """Pattern matching step failed"""
+    pass
+
+
+class EmbeddingError(RouterError):
+    """Embedding classification step failed"""
+    pass
+
+
+class LLMError(RouterError):
+    """LLM classification step failed"""
+    pass
+
+
+class KeywordError(RouterError):
+    """Keyword hint step failed"""
+    pass

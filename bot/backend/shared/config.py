@@ -41,7 +41,7 @@ class RouterConfig:
         self.STEP_PATTERN_TIMEOUT = int(os.getenv("STEP_PATTERN_TIMEOUT", "30"))
         self.STEP_KEYWORD_TIMEOUT = int(os.getenv("STEP_KEYWORD_TIMEOUT", "20"))
         self.STEP_EMBEDDING_TIMEOUT = int(os.getenv("STEP_EMBEDDING_TIMEOUT", "200"))
-        self.STEP_LLM_TIMEOUT = int(os.getenv("STEP_LLM_TIMEOUT", "2000"))
+        self.STEP_LLM_TIMEOUT = int(os.getenv("STEP_LLM_TIMEOUT", "15000"))  # 15 seconds for LLM classification
         
         # ==================== AI ROUTING ====================
         self.AI_PROVIDER_PRIMARY = os.getenv("AI_PROVIDER_PRIMARY", "litellm")
@@ -70,6 +70,11 @@ class RouterConfig:
         # ==================== LOGGING ====================
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.LOG_FORMAT = os.getenv("LOG_FORMAT", "json")
+        
+        # ==================== TRACING (OpenTelemetry) ====================
+        self.ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
+        self.JAEGER_ENDPOINT = os.getenv("JAEGER_ENDPOINT", None)  # e.g., http://localhost:4317
+        self.OTEL_CONSOLE_EXPORT = os.getenv("OTEL_CONSOLE_EXPORT", "true").lower() == "true"
         
         # ==================== FEATURE FLAGS ====================
         self.FEATURE_EMBEDDING_CLASSIFIER = os.getenv("FEATURE_EMBEDDING_CLASSIFIER", "true").lower() == "true"

@@ -1236,14 +1236,24 @@ class AdminConfigService:
         
         pool = self.db.pool
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                DELETE FROM prompt_templates
-                WHERE tenant_id = $1 AND template_name = $2
-                """,
-                existing.tenant_id,
-                existing.template_name
-            )
+            # Handle NULL tenant_id case
+            if existing.tenant_id is None:
+                await conn.execute(
+                    """
+                    DELETE FROM prompt_templates
+                    WHERE tenant_id IS NULL AND template_name = $1
+                    """,
+                    existing.template_name
+                )
+            else:
+                await conn.execute(
+                    """
+                    DELETE FROM prompt_templates
+                    WHERE tenant_id = $1 AND template_name = $2
+                    """,
+                    existing.tenant_id,
+                    existing.template_name
+                )
         
         # Invalidate cache
         await self.config_loader.invalidate_cache("prompt_templates", existing.tenant_id)
@@ -1264,6 +1274,7 @@ class AdminConfigService:
         return PromptTemplateResponse(
             id=row["id"],
             tenant_id=row["tenant_id"],
+            rule_name=row["template_name"],  # Map template_name to rule_name for ConfigBase compatibility
             template_name=row["template_name"],
             template_type=row["template_type"],
             domain=row["domain"],

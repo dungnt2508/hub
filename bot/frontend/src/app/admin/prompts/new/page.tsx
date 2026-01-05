@@ -27,11 +27,22 @@ export default function NewPromptTemplatePage() {
     setLoading(true);
 
     try {
-      await adminConfigService.createPromptTemplate(formData);
+      // Map template_name to rule_name for backend compatibility
+      const payload = {
+        ...formData,
+        rule_name: formData.template_name,
+        scope: 'global' as const,
+      };
+      await adminConfigService.createPromptTemplate(payload);
       toast.success('Đã tạo prompt template');
       router.push('/admin/prompts');
     } catch (error: any) {
-      toast.error(error.message || 'Không thể tạo prompt template');
+      const errorMessage = typeof error === 'string' 
+        ? error 
+        : (error?.message && typeof error.message === 'string' 
+          ? error.message 
+          : 'Không thể tạo prompt template');
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

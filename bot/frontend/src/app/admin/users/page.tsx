@@ -25,13 +25,9 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    // Middleware already checked auth, just fetch users
     fetchUsers();
-  }, [router]);
+  }, []);
 
   const fetchUsers = async () => {
     try {

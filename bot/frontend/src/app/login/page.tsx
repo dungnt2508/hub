@@ -19,12 +19,21 @@ export default function LoginPage() {
     try {
       const response = await adminConfigService.login(email, password);
       
-      // Store token and user
+      // Store token and user in both localStorage (for API calls) and cookie (for middleware)
       localStorage.setItem('admin_token', response.token);
       localStorage.setItem('admin_user', JSON.stringify(response.user));
       
+      // Set cookie for middleware (HttpOnly would be better but requires API route)
+      // For now, set secure cookie with SameSite=Strict
+      const expiresIn = response.expires_in || 86400; // Default 24 hours
+      const expires = new Date(Date.now() + expiresIn * 1000).toUTCString();
+      document.cookie = `admin_token=${response.token}; expires=${expires}; path=/; SameSite=Strict; Secure=${window.location.protocol === 'https:'}`;
+      
       toast.success('Đăng nhập thành công!');
-      router.push('/admin/dashboard');
+      
+      // Redirect to original URL or dashboard
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/admin/dashboard';
+      router.push(redirectUrl);
     } catch (error: any) {
       toast.error(error.message || 'Đăng nhập thất bại');
     } finally {

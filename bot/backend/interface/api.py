@@ -14,6 +14,7 @@ from .admin_api import router as admin_router
 from .handlers.embed_init_handler import setup_test_data
 from ..shared.logger import logger
 from ..shared.config import config
+from ..shared.tracing import init_tracing
 from ..infrastructure.redis_client import redis_client
 from ..infrastructure.database_client import database_client
 from ..infrastructure.ai_provider import AIProvider
@@ -58,6 +59,14 @@ async def startup_event():
     global _ai_provider
     
     try:
+        # Initialize OpenTelemetry tracing
+        if config.ENABLE_TRACING:
+            try:
+                init_tracing()
+                logger.info("Infrastructure initialized: OpenTelemetry tracing enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize tracing: {e}", exc_info=True)
+        
         # Connect Redis
         await redis_client.connect()
         logger.info("Infrastructure initialized: Redis connected")

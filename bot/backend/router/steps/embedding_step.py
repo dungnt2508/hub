@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 from ...shared.logger import logger
 from ...shared.config import config
-from ...shared.exceptions import ExternalServiceError
+from ...shared.exceptions import ExternalServiceError, EmbeddingError, RouterTimeoutError
 from ...infrastructure.ai_provider import AIProvider
 from ...infrastructure.intent_store import IntentStore
 from ...infrastructure.embedding_scorer import EmbeddingScorer
@@ -49,26 +49,56 @@ class EmbeddingClassifierStep:
         try:
             # Ensure embeddings are loaded
             if not self._embeddings_loaded:
-                await self.intent_store.load_embeddings(self.provider)
-                self._embeddings_loaded = True
+                try:
+                    await self.intent_store.load_embeddings(self.provider)
+                    self._embeddings_loaded = True
+                except Exception as e:
+                    logger.error(
+                        f"Failed to load embeddings: {e}",
+                        exc_info=True
+                    )
+                    raise EmbeddingError(f"Failed to load intent embeddings: {e}") from e
             
             # Get query embedding with timeout
-            query_vec = await asyncio.wait_for(
-                self.provider.embed(message),
-                timeout=config.STEP_EMBEDDING_TIMEOUT / 1000.0
-            )
+            try:
+                query_vec = await asyncio.wait_for(
+                    self.provider.embed(message),
+                    timeout=config.STEP_EMBEDDING_TIMEOUT / 1000.0
+                )
+            except asyncio.TimeoutError as e:
+                logger.error(
+                    f"Embedding classification timeout: {e}",
+                    extra={"message_length": len(message)},
+                    exc_info=True
+                )
+                raise RouterTimeoutError(f"Embedding timeout after {config.STEP_EMBEDDING_TIMEOUT}ms") from e
+            except ExternalServiceError as e:
+                logger.error(
+                    f"Embedding provider error: {e}",
+                    exc_info=True
+                )
+                raise EmbeddingError(f"Embedding provider failed: {e}") from e
             
             # Get all intents
             intents = self.intent_store.get_all()
             
             if not intents:
                 logger.warning("No intents in intent store")
+                # This is not an error, just no intents available
                 return {"classified": False, "reason": "no_intents"}
             
             # Find best match
-            best = self.scorer.best_match(query_vec, intents, boost)
+            try:
+                best = self.scorer.best_match(query_vec, intents, boost)
+            except Exception as e:
+                logger.error(
+                    f"Failed to calculate embedding similarity: {e}",
+                    exc_info=True
+                )
+                raise EmbeddingError(f"Similarity calculation failed: {e}") from e
             
             if not best or best.score < self.threshold:
+                # This is not an error, just low confidence
                 return {
                     "classified": False,
                     "reason": "score_below_threshold",
@@ -92,12 +122,12 @@ class EmbeddingClassifierStep:
                 "source": "EMBEDDING",
             }
             
-        except asyncio.TimeoutError as e:
-            logger.warning(f"Embedding classification timeout: {e}")
-            return {"classified": False, "reason": "timeout"}
-        except ExternalServiceError as e:
-            logger.error(f"Embedding classification error: {e}", exc_info=True)
-            return {"classified": False, "reason": "provider_error"}
+        except (EmbeddingError, RouterTimeoutError):
+            # Re-raise our custom exceptions
+            raise
         except Exception as e:
-            logger.error(f"Embedding classification failed: {e}", exc_info=True)
-            return {"classified": False, "reason": "unknown_error"}
+            logger.error(
+                f"Unexpected embedding classification error: {e}",
+                exc_info=True
+            )
+            raise EmbeddingError(f"Unexpected embedding error: {e}") from e

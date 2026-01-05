@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
 import adminConfigService, { PatternRuleCreate } from '@/services/admin-config.service';
+import RuleNameSuggestions from '@/components/RuleNameSuggestions';
+import UseCaseSelector from '@/components/UseCaseSelector';
 import { ArrowLeft, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -72,6 +74,18 @@ export default function NewPatternRulePage() {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
                 placeholder="HR Leave Query"
               />
+              <RuleNameSuggestions
+                targetIntent={formData.target_intent}
+                targetDomain={formData.target_domain}
+                onSelect={(suggestion) => {
+                  setFormData({
+                    ...formData,
+                    rule_name: suggestion.rule_name,
+                    target_domain: suggestion.target_domain,
+                    target_intent: suggestion.intent,
+                  });
+                }}
+              />
             </div>
 
             <div>
@@ -138,13 +152,22 @@ export default function NewPatternRulePage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Target Intent
               </label>
-              <input
-                type="text"
-                value={formData.target_intent || ''}
-                onChange={(e) => setFormData({ ...formData, target_intent: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-                placeholder="query_leave_balance"
+              <UseCaseSelector
+                value={formData.target_intent}
+                onChange={(intent, domain, intentType) => {
+                  setFormData({
+                    ...formData,
+                    target_intent: intent,
+                    target_domain: domain || formData.target_domain,
+                    intent_type: intentType as any,
+                  });
+                }}
+                domainFilter={formData.target_domain}
+                intentTypeFilter={formData.intent_type}
               />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Chọn từ danh sách use cases có sẵn trong hệ thống
+              </p>
             </div>
 
             <div>

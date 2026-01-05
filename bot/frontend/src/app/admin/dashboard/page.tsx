@@ -3,21 +3,24 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
-import { Route, Hash, FileText, TestTube, FileSearch, Users } from 'lucide-react';
+import { Route, Hash, FileText, TestTube, FileSearch, Users, Code } from 'lucide-react';
 import Link from 'next/link';
+import UseCaseList from '@/components/UseCaseList';
 
 export default function AdminDashboard() {
-  const router = useRouter();
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    // Load user from localStorage (middleware already checked auth)
     const userStr = localStorage.getItem('admin_user');
-    if (!userStr) {
-      router.push('/login');
-    } else {
-      setUser(JSON.parse(userStr));
+    if (userStr) {
+      try {
+        setUser(JSON.parse(userStr));
+      } catch (e) {
+        console.error('Failed to parse user from localStorage', e);
+      }
     }
-  }, [router]);
+  }, []);
 
   const quickLinks = [
     {
@@ -91,6 +94,21 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* Available Use Cases */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+              <Code className="h-5 w-5 mr-2" />
+              Use Cases Có Sẵn
+            </h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Danh sách các use cases (intents) đã được implement trong hệ thống. 
+            Sử dụng khi tạo routing rules, pattern rules, hoặc keyword hints.
+          </p>
+          <UseCaseList />
+        </div>
 
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">

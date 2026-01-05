@@ -1,11 +1,14 @@
 """
 HR Domain Engine - Entry Handler
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ...schemas import DomainRequest, DomainResponse, DomainResult
 from ...shared.exceptions import DomainError, InvalidInputError
 from ...shared.logger import logger
+from .ports.repository import IHRRepository
+from .adapters.postgresql_repository import PostgreSQLHRRepository
+from .middleware.rbac import RBACMiddleware
 from .use_cases import (
     CreateLeaveRequestUseCase,
     QueryLeaveBalanceUseCase,
@@ -20,12 +23,27 @@ class HREntryHandler:
     Maps intents to use cases and executes them.
     """
     
-    def __init__(self):
-        """Initialize HR entry handler with use cases"""
+    def __init__(self, repository: Optional[IHRRepository] = None, rbac_middleware: Optional[RBACMiddleware] = None):
+        """
+        Initialize HR entry handler with use cases.
+        
+        Args:
+            repository: HR repository (defaults to PostgreSQLHRRepository)
+            rbac_middleware: RBAC middleware (optional, will be created if not provided)
+        """
+        # Initialize repository if not provided
+        if repository is None:
+            repository = PostgreSQLHRRepository()
+        
+        # Initialize RBAC middleware if not provided
+        if rbac_middleware is None:
+            rbac_middleware = RBACMiddleware(repository)
+        
+        # Initialize use cases with repository and RBAC injection
         self.use_cases = {
-            "create_leave_request": CreateLeaveRequestUseCase(),
-            "query_leave_balance": QueryLeaveBalanceUseCase(),
-            "approve_leave": ApproveLeaveUseCase(),
+            "create_leave_request": CreateLeaveRequestUseCase(repository, rbac_middleware),
+            "query_leave_balance": QueryLeaveBalanceUseCase(repository, rbac_middleware),
+            "approve_leave": ApproveLeaveUseCase(repository, rbac_middleware),
         }
     
     async def handle(self, request: DomainRequest) -> DomainResponse:

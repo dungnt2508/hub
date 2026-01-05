@@ -1,0 +1,4 @@
+"""
+HR Adapters - Repository implementations
+"""
+

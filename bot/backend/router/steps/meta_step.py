@@ -38,10 +38,20 @@ class MetaTaskStep:
         Returns:
             Dict with "handled" flag and optional "response"
         """
+        import re
         message = normalized.normalized_message.lower()
         
+        # Helper function to check whole word match
+        def check_whole_word(pattern: str, text: str) -> bool:
+            """Check if pattern matches as whole word (not substring)"""
+            # Escape special regex characters
+            escaped = re.escape(pattern)
+            # Match whole word boundaries
+            word_pattern = r'\b' + escaped + r'\b'
+            return bool(re.search(word_pattern, text, re.IGNORECASE))
+        
         # Check for help
-        if any(pattern in message for pattern in self.meta_patterns["help"]):
+        if any(check_whole_word(pattern, message) for pattern in self.meta_patterns["help"]):
             return {
                 "handled": True,
                 "response": "Tôi có thể giúp bạn với các tác vụ về HR, Operations, và nhiều lĩnh vực khác. Bạn muốn làm gì?",
@@ -49,7 +59,7 @@ class MetaTaskStep:
             }
         
         # Check for reset
-        if any(pattern in message for pattern in self.meta_patterns["reset"]):
+        if any(check_whole_word(pattern, message) for pattern in self.meta_patterns["reset"]):
             return {
                 "handled": True,
                 "response": "Đã reset. Bạn muốn làm gì tiếp theo?",
@@ -57,7 +67,7 @@ class MetaTaskStep:
             }
         
         # Check for greeting
-        if any(pattern in message for pattern in self.meta_patterns["greeting"]):
+        if any(check_whole_word(pattern, message) for pattern in self.meta_patterns["greeting"]):
             return {
                 "handled": True,
                 "response": "Xin chào! Tôi có thể giúp gì cho bạn?",
@@ -65,7 +75,7 @@ class MetaTaskStep:
             }
         
         # Check for goodbye
-        if any(pattern in message for pattern in self.meta_patterns["goodbye"]):
+        if any(check_whole_word(pattern, message) for pattern in self.meta_patterns["goodbye"]):
             return {
                 "handled": True,
                 "response": "Tạm biệt! Hẹn gặp lại.",

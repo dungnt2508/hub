@@ -18,13 +18,9 @@ export default function AuditLogsPage() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    // Middleware already checked auth, just fetch logs
     fetchLogs();
-  }, [router]);
+  }, []);
 
   const fetchLogs = async () => {
     try {

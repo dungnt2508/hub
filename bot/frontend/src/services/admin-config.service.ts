@@ -300,6 +300,46 @@ class AdminConfigService {
     return apiClient.post<TestSandboxResponse>(`${this.baseUrl}/test-sandbox`, request);
   }
 
+  // ==================== Use Cases Discovery ====================
+  async listUseCases(domain?: string) {
+    const params = domain ? { domain } : {};
+    return apiClient.get<{
+      domains?: Array<{
+        name: string;
+        display_name: string;
+        description: string;
+        intents: Array<{
+          intent: string;
+          display_name: string;
+          description: string;
+          intent_type: string;
+        }>;
+      }>;
+      intents?: Array<{
+        intent: string;
+        display_name: string;
+        description: string;
+        intent_type: string;
+        domain: string;
+        domain_display_name: string;
+      }>;
+      total_domains?: number;
+      total_intents?: number;
+    }>(`${this.baseUrl}/use-cases`, { params });
+  }
+
+  async getRoutingRuleSuggestions() {
+    return apiClient.get<{
+      suggestions: Array<{
+        rule_name: string;
+        intent: string;
+        target_domain: string;
+        id: string;
+      }>;
+      total: number;
+    }>(`${this.baseUrl}/routing-rules/suggestions`);
+  }
+
   // ==================== Audit Logs ====================
   async listAuditLogs(params?: {
     tenant_id?: string;

@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 
 from ...shared.logger import logger
+from ...shared.exceptions import PatternMatchError, ExternalServiceError
 from ...infrastructure.config_loader import config_loader
 
 
@@ -24,7 +25,13 @@ class PatternMatchStep:
         self._refresh_interval = 300  # 5 minutes
     
     async def _load_patterns(self, tenant_id: Optional[UUID] = None):
-        """Load and compile patterns from config"""
+        """
+        Load and compile patterns from config.
+        
+        Raises:
+            PatternMatchError: If pattern loading fails critically
+            ExternalServiceError: If config loader fails
+        """
         import time
         
         current_time = time.time()
@@ -35,8 +42,16 @@ class PatternMatchStep:
             or tenant_id != self._last_tenant_id
             or (current_time - self._last_refresh_time) > self._refresh_interval
         ):
-            # Load from config loader
-            rules = await config_loader.get_pattern_rules(tenant_id, enabled_only=True)
+            try:
+                # Load from config loader
+                rules = await config_loader.get_pattern_rules(tenant_id, enabled_only=True)
+            except Exception as e:
+                logger.error(
+                    f"Failed to load pattern rules: {e}",
+                    extra={"tenant_id": str(tenant_id) if tenant_id else None},
+                    exc_info=True
+                )
+                raise ExternalServiceError(f"Failed to load pattern rules: {e}") from e
             
             # Compile patterns
             compiled = []
@@ -63,12 +78,21 @@ class PatternMatchStep:
                         rule.get("slots_extraction", {}),
                         rule.get("id"),  # For logging
                     ))
-                except Exception as e:
+                except re.error as e:
+                    # Invalid regex pattern - log warning but continue
                     logger.warning(
                         f"Failed to compile pattern rule {rule.get('id')}: {e}",
                         extra={"rule_id": rule.get("id"), "pattern": rule.get("pattern_regex")}
                     )
                     continue
+                except Exception as e:
+                    # Unexpected error compiling pattern - raise
+                    logger.error(
+                        f"Unexpected error compiling pattern rule {rule.get('id')}: {e}",
+                        extra={"rule_id": rule.get("id"), "pattern": rule.get("pattern_regex")},
+                        exc_info=True
+                    )
+                    raise PatternMatchError(f"Failed to compile pattern rule: {e}") from e
             
             # Sort by priority (descending)
             compiled.sort(key=lambda x: x[4], reverse=True)

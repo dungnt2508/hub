@@ -15,13 +15,9 @@ export default function PromptTemplatesPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    // Middleware already checked auth, just fetch templates
     fetchTemplates();
-  }, [router]);
+  }, []);
 
   const fetchTemplates = async () => {
     try {

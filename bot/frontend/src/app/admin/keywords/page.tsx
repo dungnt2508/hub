@@ -15,13 +15,9 @@ export default function KeywordHintsPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    // Middleware already checked auth, just fetch hints
     fetchHints();
-  }, [router]);
+  }, []);
 
   const fetchHints = async () => {
     try {

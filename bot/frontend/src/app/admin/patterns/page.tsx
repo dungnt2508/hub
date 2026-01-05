@@ -15,13 +15,9 @@ export default function PatternRulesPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    // Middleware already checked auth, just fetch rules
     fetchRules();
-  }, [router]);
+  }, []);
 
   const fetchRules = async () => {
     try {

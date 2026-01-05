@@ -1,25 +1,34 @@
 """
 Create Leave Request Use Case
 """
-from datetime import datetime
+from datetime import datetime, date
+from dateutil import parser
 
+from typing import Optional
 from ....schemas import DomainRequest, DomainResponse, DomainResult
+from ....shared.exceptions import DomainError, InvalidInputError, AuthorizationError
+from ....shared.logger import logger
 from .base_use_case import BaseUseCase
+from ..entities import LeaveRequest
 from ..ports.repository import IHRRepository
+from ..middleware.rbac import RBACMiddleware
 
 
 class CreateLeaveRequestUseCase(BaseUseCase):
     """Use case for creating leave request"""
     
-    def __init__(self, repository: IHRRepository = None):
+    def __init__(self, repository: IHRRepository, rbac_middleware: Optional[RBACMiddleware] = None):
         """
         Initialize use case.
         
         Args:
-            repository: HR repository (injected)
+            repository: HR repository (required, injected)
+            rbac_middleware: RBAC middleware (optional, will be created if not provided)
         """
-        # TODO: Inject repository via dependency injection
+        if repository is None:
+            raise ValueError("Repository is required for CreateLeaveRequestUseCase")
         self.repository = repository
+        self.rbac = rbac_middleware or RBACMiddleware(repository)
         self.required_slots = ["start_date", "end_date", "reason"]
     
     async def execute(self, request: DomainRequest) -> DomainResponse:
@@ -31,6 +40,10 @@ class CreateLeaveRequestUseCase(BaseUseCase):
             
         Returns:
             Domain response
+            
+        Raises:
+            InvalidInputError: If required slots are missing or invalid
+            DomainError: If employee not found or leave balance insufficient
         """
         # Validate required slots
         missing_slots = self.validate_slots(request, self.required_slots)
@@ -42,21 +55,99 @@ class CreateLeaveRequestUseCase(BaseUseCase):
             )
         
         user_id = request.user_context.get("user_id")
-        start_date = request.slots.get("start_date")
-        end_date = request.slots.get("end_date")
-        reason = request.slots.get("reason")
+        if not user_id:
+            raise InvalidInputError("user_id is required in user_context")
         
-        # TODO: Validate dates
-        # TODO: Check leave balance
-        # TODO: Create leave request via repository
+        # Enforce RBAC: Check permission to create leave request
+        try:
+            await self.rbac.enforce_create_leave_request_permission(user_id)
+        except AuthorizationError as e:
+            logger.warning(
+                f"Permission denied for create leave request: {e}",
+                extra={
+                    "user_id": user_id,
+                    "trace_id": request.trace_id
+                }
+            )
+            raise
+        
+        # Get employee to get employee_id
+        employee = await self.repository.get_employee(user_id)
+        if not employee:
+            raise DomainError(f"Không tìm thấy thông tin nhân viên với user_id: {user_id}")
+        
+        # Parse dates
+        try:
+            start_date_str = request.slots.get("start_date")
+            end_date_str = request.slots.get("end_date")
+            
+            if isinstance(start_date_str, str):
+                start_date = parser.parse(start_date_str).date()
+            elif isinstance(start_date_str, date):
+                start_date = start_date_str
+            else:
+                raise InvalidInputError("start_date must be a valid date")
+            
+            if isinstance(end_date_str, str):
+                end_date = parser.parse(end_date_str).date()
+            elif isinstance(end_date_str, date):
+                end_date = end_date_str
+            else:
+                raise InvalidInputError("end_date must be a valid date")
+            
+            # Validate dates
+            if start_date > end_date:
+                raise InvalidInputError("start_date must be before or equal to end_date")
+            
+            if start_date < date.today():
+                raise InvalidInputError("start_date cannot be in the past")
+            
+        except (ValueError, TypeError) as e:
+            raise InvalidInputError(f"Invalid date format: {e}")
+        
+        reason = request.slots.get("reason", "")
+        
+        # Check leave balance
+        days_requested = (end_date - start_date).days + 1
+        if employee.leave_balance < days_requested:
+            return DomainResponse(
+                status=DomainResult.ERROR,
+                message=f"Bạn không đủ ngày phép. Bạn còn {employee.leave_balance} ngày, nhưng yêu cầu {days_requested} ngày.",
+                data={
+                    "leave_balance": employee.leave_balance,
+                    "days_requested": days_requested,
+                }
+            )
+        
+        # Create leave request
+        leave_request = LeaveRequest(
+            leave_request_id="",  # Will be generated by repository
+            employee_id=employee.employee_id,
+            start_date=start_date,
+            end_date=end_date,
+            reason=reason,
+            status="pending"
+        )
+        
+        created_request = await self.repository.create_leave_request(leave_request)
+        
+        logger.info(
+            f"Created leave request: {created_request.leave_request_id}",
+            extra={
+                "leave_request_id": created_request.leave_request_id,
+                "employee_id": employee.employee_id,
+                "user_id": user_id,
+                "trace_id": request.trace_id
+            }
+        )
         
         return DomainResponse(
             status=DomainResult.SUCCESS,
             data={
-                "leave_request_id": "lr_123",
-                "start_date": start_date,
-                "end_date": end_date,
-                "status": "pending",
+                "leave_request_id": created_request.leave_request_id,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "status": created_request.status,
             },
             message="Đã tạo đơn xin nghỉ phép thành công",
             audit={

@@ -10,7 +10,7 @@ from ..router import RouterOrchestrator
 from ..schemas import RouterRequest, RouterResponse
 from ..personalization import PersonalizationService, ResponseFormatter
 from ..shared.logger import logger
-from ..shared.exceptions import RouterError, InvalidInputError
+from ..shared.exceptions import RouterError, InvalidInputError, AuthenticationError
 
 
 class APIHandler:
@@ -144,4 +144,59 @@ class APIHandler:
             "url": preferences.avatar.avatar_url,
             "name": preferences.avatar.custom_name or "Bot",
         }
+    
+    @staticmethod
+    def format_error_response(
+        error_type: str,
+        message: str,
+        status_code: int = 500,
+        details: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Format standardized error response.
+        
+        Args:
+            error_type: Error type (e.g., "INVALID_INPUT", "AUTHENTICATION_ERROR")
+            message: Error message
+            status_code: HTTP status code
+            details: Optional additional details
+            
+        Returns:
+            Formatted error response dict
+        """
+        response = {
+            "error": True,
+            "message": message,
+            "status_code": status_code,
+        }
+        
+        if details:
+            response["details"] = details
+        
+        return response
+    
+    @staticmethod
+    def format_success_response(
+        data: Dict[str, Any],
+        trace_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Format standardized success response.
+        
+        Args:
+            data: Response data
+            trace_id: Optional trace ID
+            
+        Returns:
+            Formatted success response dict
+        """
+        response = {
+            "success": True,
+            "data": data,
+        }
+        
+        if trace_id:
+            response["data"]["traceId"] = trace_id
+        
+        return response
 
