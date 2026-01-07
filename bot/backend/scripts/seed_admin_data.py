@@ -3,7 +3,11 @@ Seed Admin Dashboard Data
 Tạo sample data cho admin dashboard frontend
 
 Usage:
+    # Seed data
     python -m backend.scripts.seed_admin_data
+    
+    # Clean (delete) all seeded data
+    python -m backend.scripts.seed_admin_data --clean
 """
 import asyncio
 import sys
@@ -28,12 +32,12 @@ async def seed_admin_data():
         logger.info("Connected to database")
         
         # 1. Create admin user if not exists
-        await create_admin_user()
+        # await create_admin_user()
         
         # 2. Get admin user ID for created_by
         admin_service = AdminUserService()
-        admin_user = await admin_service.get_admin_user_by_email("admin@example.com")
-        admin_user_id = UUID(admin_user["id"])
+        admin_user = await admin_service.get_admin_user_by_email("gsnake1102@gmail.com")
+        admin_user_id = UUID(str(admin_user["id"]))
         
         # 3. Create sample pattern rules
         await create_pattern_rules(admin_user_id)
@@ -350,6 +354,7 @@ async def create_prompt_templates(created_by: UUID):
     
     prompt_templates = [
         {
+            "rule_name": "HR - Tra cứu ngày phép System Prompt",
             "template_name": "HR - Tra cứu ngày phép System Prompt",
             "template_type": "system",
             "domain": "hr",
@@ -361,6 +366,7 @@ async def create_prompt_templates(created_by: UUID):
             "description": "System prompt cho tra cứu ngày phép",
         },
         {
+            "rule_name": "HR - Tạo đơn nghỉ phép System Prompt",
             "template_name": "HR - Tạo đơn nghỉ phép System Prompt",
             "template_type": "system",
             "domain": "hr",
@@ -372,6 +378,7 @@ async def create_prompt_templates(created_by: UUID):
             "description": "System prompt cho tạo đơn nghỉ phép",
         },
         {
+            "rule_name": "HR - Duyệt đơn nghỉ phép System Prompt",
             "template_name": "HR - Duyệt đơn nghỉ phép System Prompt",
             "template_type": "system",
             "domain": "hr",
@@ -383,6 +390,7 @@ async def create_prompt_templates(created_by: UUID):
             "description": "System prompt cho duyệt đơn nghỉ phép",
         },
         {
+            "rule_name": "Catalog - Tìm kiếm sản phẩm System Prompt",
             "template_name": "Catalog - Tìm kiếm sản phẩm System Prompt",
             "template_type": "system",
             "domain": "catalog",
@@ -394,6 +402,7 @@ async def create_prompt_templates(created_by: UUID):
             "description": "System prompt cho tìm kiếm sản phẩm",
         },
         {
+            "rule_name": "Catalog - Tra cứu giá System Prompt",
             "template_name": "Catalog - Tra cứu giá System Prompt",
             "template_type": "system",
             "domain": "catalog",
@@ -405,6 +414,7 @@ async def create_prompt_templates(created_by: UUID):
             "description": "System prompt cho tra cứu giá sản phẩm",
         },
         {
+            "rule_name": "Knowledge - Hỏi đáp System Prompt",
             "template_name": "Knowledge - Hỏi đáp System Prompt",
             "template_type": "system",
             "domain": "knowledge",
@@ -416,6 +426,7 @@ async def create_prompt_templates(created_by: UUID):
             "description": "System prompt cho hỏi đáp kiến thức",
         },
         {
+            "rule_name": "Meta - Chào hỏi System Prompt",
             "template_name": "Meta - Chào hỏi System Prompt",
             "template_type": "system",
             "domain": "meta",
@@ -444,6 +455,108 @@ async def create_prompt_templates(created_by: UUID):
     print(f"✅ Đã tạo {created_count} prompt templates")
 
 
+async def clean_admin_data():
+    """Xóa tất cả dữ liệu admin đã seed"""
+    try:
+        # Connect to database
+        await database_client.connect()
+        logger.info("Connected to database")
+        
+        deleted_counts = {
+            "pattern_rules": 0,
+            "keyword_hints": 0,
+            "routing_rules": 0,
+            "prompt_templates": 0,
+        }
+        
+        # 1. Delete all pattern rules
+        try:
+            pattern_rules = await admin_config_service.list_pattern_rules(limit=1000, offset=0)
+            for rule in pattern_rules.get("items", []):
+                try:
+                    # Pydantic models - access attributes directly
+                    await admin_config_service.delete_pattern_rule(rule.id)
+                    deleted_counts["pattern_rules"] += 1
+                    logger.info(f"Deleted pattern rule: {rule.rule_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete pattern rule {rule.id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error listing/deleting pattern rules: {e}")
+        
+        # 2. Delete all keyword hints
+        try:
+            keyword_hints = await admin_config_service.list_keyword_hints(limit=1000, offset=0)
+            for hint in keyword_hints.get("items", []):
+                try:
+                    # Pydantic models - access attributes directly
+                    await admin_config_service.delete_keyword_hint(hint.id)
+                    deleted_counts["keyword_hints"] += 1
+                    logger.info(f"Deleted keyword hint: {hint.rule_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete keyword hint {hint.id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error listing/deleting keyword hints: {e}")
+        
+        # 3. Delete all routing rules
+        try:
+            routing_rules = await admin_config_service.list_routing_rules(limit=1000, offset=0)
+            for rule in routing_rules.get("items", []):
+                try:
+                    # Pydantic models - access attributes directly
+                    await admin_config_service.delete_routing_rule(rule.id)
+                    deleted_counts["routing_rules"] += 1
+                    logger.info(f"Deleted routing rule: {rule.rule_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete routing rule {rule.id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error listing/deleting routing rules: {e}")
+        
+        # 4. Delete all prompt templates
+        try:
+            prompt_templates = await admin_config_service.list_prompt_templates(limit=1000, offset=0)
+            for template in prompt_templates.get("items", []):
+                try:
+                    # Pydantic models - access attributes directly
+                    await admin_config_service.delete_prompt_template(template.id)
+                    deleted_counts["prompt_templates"] += 1
+                    logger.info(f"Deleted prompt template: {template.template_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete prompt template {template.id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error listing/deleting prompt templates: {e}")
+        
+        # Wait a bit for cache invalidation
+        await asyncio.sleep(1)
+        
+        logger.info("✅ Successfully cleaned admin dashboard data")
+        print("\n✅ Đã xóa dữ liệu admin dashboard thành công!")
+        print("\n📝 Dữ liệu đã xóa:")
+        print(f"   - Pattern rules: {deleted_counts['pattern_rules']} rules")
+        print(f"   - Keyword hints: {deleted_counts['keyword_hints']} hints")
+        print(f"   - Routing rules: {deleted_counts['routing_rules']} rules")
+        print(f"   - Prompt templates: {deleted_counts['prompt_templates']} templates")
+        
+    except Exception as e:
+        logger.error(f"Error cleaning admin data: {e}", exc_info=True)
+        print(f"\n❌ Error cleaning data: {e}")
+        raise
+    finally:
+        await database_client.disconnect()
+
+
 if __name__ == "__main__":
-    asyncio.run(seed_admin_data())
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Seed or clean admin dashboard data")
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clean (delete) all seeded admin data instead of seeding"
+    )
+    args = parser.parse_args()
+    
+    if args.clean:
+        asyncio.run(clean_admin_data())
+    else:
+        asyncio.run(seed_admin_data())
 

@@ -262,17 +262,17 @@ class ConfigLoader:
         **filters
     ):
         """Invalidate cache for specific config type"""
+        # Invalidate memory cache
+        pattern = self._cache_key(config_type, tenant_id, **filters)
+        keys_to_delete = [
+            key for key in self._memory_cache.keys()
+            if key.startswith(pattern)
+        ]
+        for key in keys_to_delete:
+            del self._memory_cache[key]
+        
+        # Invalidate Redis cache (if available)
         try:
-            # Invalidate memory cache
-            pattern = self._cache_key(config_type, tenant_id, **filters)
-            keys_to_delete = [
-                key for key in self._memory_cache.keys()
-                if key.startswith(pattern)
-            ]
-            for key in keys_to_delete:
-                del self._memory_cache[key]
-            
-            # Invalidate Redis cache
             if tenant_id:
                 patterns = [
                     f"{self.CACHE_PREFIX}{config_type}:{tenant_id}:*",
@@ -294,7 +294,9 @@ class ConfigLoader:
             
             logger.info(f"Invalidated cache for {config_type} (tenant_id={tenant_id})")
         except Exception as e:
-            logger.error(f"Cache invalidation failed: {e}", exc_info=True)
+            # Redis might not be connected (e.g., in seed scripts)
+            # Log as warning, not error, since memory cache was already invalidated
+            logger.warning(f"Redis cache invalidation skipped: {e}")
     
     async def invalidate_all_cache(self):
         """Invalidate all config caches"""
@@ -312,7 +314,9 @@ class ConfigLoader:
                     break
             logger.info("Invalidated all config caches")
         except Exception as e:
-            logger.error(f"Cache invalidation failed: {e}", exc_info=True)
+            # Redis might not be connected (e.g., in seed scripts)
+            # Log as warning, not error, since memory cache was already cleared
+            logger.warning(f"Redis cache invalidation skipped: {e}")
 
 
 # Global config loader instance

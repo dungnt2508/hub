@@ -292,7 +292,10 @@ DELETE FROM pattern_rules;
 ```sql
 DELETE FROM admin_users WHERE email = 'admin@example.com';
 ```
-
+script clean
+```
+docker exec -it bot_backend python -m backend.scripts.seed_admin_data --clean
+```
 ---
 
 ## 📊 Sample Queries Để Test (Tiếng Việt)
