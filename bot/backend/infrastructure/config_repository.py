@@ -72,7 +72,28 @@ class ConfigRepository:
         async with pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
         
-        return [dict(row) for row in rows]
+        # Parse JSON fields
+        results = []
+        for row in rows:
+            row_dict = dict(row)
+            # Parse keywords from JSON string if needed
+            if row_dict.get("keywords"):
+                if isinstance(row_dict["keywords"], str):
+                    row_dict["keywords"] = json.loads(row_dict["keywords"])
+                # If it's already a dict (JSONB), keep it as is
+            else:
+                row_dict["keywords"] = {}
+            
+            # Parse scope_filter from JSON string if needed
+            if row_dict.get("scope_filter"):
+                if isinstance(row_dict["scope_filter"], str):
+                    row_dict["scope_filter"] = json.loads(row_dict["scope_filter"])
+            else:
+                row_dict["scope_filter"] = None
+            
+            results.append(row_dict)
+        
+        return results
     
     async def get_routing_rules(
         self,

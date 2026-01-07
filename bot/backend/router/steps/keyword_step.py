@@ -2,6 +2,7 @@
 STEP 3: Keyword Hint (Soft Boost)
 """
 import time
+import json
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -40,8 +41,26 @@ class KeywordHintStep:
             # Build domain_keywords dict
             domain_keywords = {}
             for hint in hints:
-                domain = hint["domain"]
+                domain = hint.get("domain")
+                if not domain:
+                    logger.warning(f"Keyword hint missing domain: {hint.get('id', 'unknown')}")
+                    continue
+                
                 keywords = hint.get("keywords", {})
+                
+                # Ensure keywords is a dict (parse JSON if it's a string)
+                if isinstance(keywords, str):
+                    try:
+                        keywords = json.loads(keywords)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse keywords JSON for hint {hint.get('id')}: {e}")
+                        keywords = {}
+                elif not isinstance(keywords, dict):
+                    logger.warning(
+                        f"Keywords is not a dict for hint {hint.get('id')}: "
+                        f"type={type(keywords)}, value={keywords}"
+                    )
+                    keywords = {}
                 
                 if domain not in domain_keywords:
                     domain_keywords[domain] = {}
