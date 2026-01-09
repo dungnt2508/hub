@@ -116,6 +116,38 @@ services:
       - migrate  # Chỉ chạy khi dùng profile migrate
 
   # ============================================
+  # MCP DB Server Service
+  # ============================================
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bot_mcp_server
+    entrypoint: []  # Override entrypoint để không chạy migrations
+    command: ["python", "-m", "mcp_server.run_server"]
+    volumes:
+      - ./mcp_server:/app/mcp_server
+      - ./backend:/app/backend  # For shared modules
+    ports:
+      - "8387:8387"
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: dev
+      MCP_SERVER_PORT: 8387
+      MCP_SERVER_HOST: 0.0.0.0
+      PYTHONPATH: /app
+    networks:
+      - shared_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8387/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================
   # Backend API Service
   # ============================================
   backend:
@@ -144,8 +176,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_pw@hub_postgres:5432/bot_db
       REDIS_URL: redis://hub_redis:6379/0
       QDRANT_URL: http://hub_qdrant:6333
+      MCP_DB_SERVER_URL: http://mcp-server:8387  # Use service name in Docker network
       PYTHONPATH: /app
-    # depends_on:
+    depends_on:
+      - mcp-server  # Backend depends on MCP server
       # LOCAL: Sử dụng services từ infra (postgres, redis) - không cần depends_on vì dùng external network
       # PRODUCTION: Uncomment và sử dụng services local
       # - postgres:

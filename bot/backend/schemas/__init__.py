@@ -21,6 +21,12 @@ from .knowledge_types import (
 from .session_types import (
     SessionState,
 )
+from .dba_types import (
+    DatabaseConnectionCreate,
+    DatabaseConnectionUpdate,
+    DatabaseConnectionResponse,
+    DatabaseConnectionTestResponse,
+)
 
 __all__ = [
     "RouterRequest",
@@ -34,4 +40,8 @@ __all__ = [
     "KnowledgeResponse",
     "KnowledgeSource",
     "SessionState",
+    "DatabaseConnectionCreate",
+    "DatabaseConnectionUpdate",
+    "DatabaseConnectionResponse",
+    "DatabaseConnectionTestResponse",
 ]

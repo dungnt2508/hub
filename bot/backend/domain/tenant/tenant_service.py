@@ -10,9 +10,9 @@ import uuid
 import secrets
 import hashlib
 
-from ..schemas.multi_tenant_types import TenantConfig, PlanType
-from ..shared.logger import logger
-from ..shared.exceptions import (
+from ...schemas.multi_tenant_types import TenantConfig, PlanType
+from ...shared.logger import logger
+from ...shared.exceptions import (
     TenantNotFoundError,
     TenantAlreadyExistsError,
     ValidationError,
@@ -44,8 +44,8 @@ class TenantService:
     async def create_tenant(
         self,
         name: str,
-        site_id: str,
-        web_embed_origins: List[str],
+        site_id: Optional[str] = None,
+        web_embed_origins: List[str] = None,
         plan: str = PlanType.BASIC,
         telegram_enabled: bool = False,
         teams_enabled: bool = False,
@@ -54,8 +54,8 @@ class TenantService:
         Create new tenant with configuration.
         
         Args:
-            name: Tenant name (e.g., "GSNAKE Catalog")
-            site_id: Site identifier (e.g., "catalog-001")
+            name: Tenant name (e.g., "GSNAKE Catalog") - must be unique
+            site_id: Site identifier (optional, will be auto-generated from UUID if not provided)
             web_embed_origins: List of allowed origins for web embed
             plan: Rate limit plan (basic/professional/enterprise)
             telegram_enabled: Enable Telegram bot
@@ -70,16 +70,25 @@ class TenantService:
             }
         
         Raises:
-            TenantAlreadyExistsError: If site_id already exists
+            TenantAlreadyExistsError: If tenant name already exists
             ValidationError: If inputs invalid
         """
         try:
             # Validate inputs
-            if not name or not name.strip():
+            name = name.strip() if name else ""
+            if not name:
                 raise ValidationError("name is required and non-empty")
             
-            if not site_id or not site_id.strip():
-                raise ValidationError("site_id is required and non-empty")
+            if len(name) < 3:
+                raise ValidationError("name must be at least 3 characters")
+            
+            if len(name) > 255:
+                raise ValidationError("name must not exceed 255 characters")
+            
+            # Validate name format (alphanumeric, spaces, hyphens, underscores)
+            import re
+            if not re.match(r'^[a-zA-Z0-9\s\-_]+$', name):
+                raise ValidationError("name can only contain letters, numbers, spaces, hyphens, and underscores")
             
             if not web_embed_origins or len(web_embed_origins) == 0:
                 raise ValidationError("at least one origin required")
@@ -87,13 +96,17 @@ class TenantService:
             if plan not in [PlanType.BASIC, PlanType.PROFESSIONAL, PlanType.ENTERPRISE]:
                 raise ValidationError(f"invalid plan: {plan}")
             
-            # Check if site_id already exists
-            existing = await self.get_tenant_by_site_id(site_id)
+            # Check if tenant name already exists (name must be unique)
+            existing = await self.get_tenant_by_site_id(name)  # Using name as site_id lookup
             if existing:
-                raise TenantAlreadyExistsError(f"site_id already exists: {site_id}")
+                raise TenantAlreadyExistsError(f"tenant name already exists: {name}")
             
             # Generate credentials
             tenant_id = str(uuid.uuid4())
+            # Auto-generate site_id from UUID if not provided
+            if not site_id:
+                site_id = f"tenant-{tenant_id[:8]}"
+            
             api_key = f"api_{site_id}_{secrets.token_urlsafe(16)}"
             jwt_secret = secrets.token_urlsafe(32)  # Min 32 chars
             
@@ -214,23 +227,23 @@ class TenantService:
         Get tenant by site_id (for embed initialization).
         
         Args:
-            site_id: Site identifier
+            site_id: Site identifier (currently matches with tenant name)
         
         Returns:
             Tenant record or None
         """
         try:
             # TODO: Implement site_id → tenant_id mapping table
-            # For now: assume site_id == some tenant reference
-            # In production: need mapping table
+            # For now: assume site_id matches tenant name
+            # In production: need a separate site_id column or mapping table
             query = """
             SELECT id, name, web_embed_origins, web_embed_jwt_secret
             FROM tenants
-            WHERE id = $1 OR name = $2
+            WHERE name = $1
             LIMIT 1
             """
             
-            row = await self.db.fetchrow(query, site_id, site_id)
+            row = await self.db.fetchrow(query, site_id)
             return dict(row) if row else None
         
         except Exception as e:

@@ -15,6 +15,10 @@ import {
   LogOut,
   Menu,
   X,
+  Database,
+  Building2,
+  Network,
+  FolderTree,
 } from 'lucide-react';
 import adminConfigService from '@/services/admin-config.service';
 import toast from 'react-hot-toast';
@@ -63,16 +67,34 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   const menuItems = [
-    { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/admin/routing/rules', icon: Route, label: 'Routing Rules' },
-    { href: '/admin/patterns', icon: Hash, label: 'Pattern Rules' },
-    { href: '/admin/keywords', icon: Hash, label: 'Keyword Hints' },
-    { href: '/admin/prompts', icon: FileText, label: 'Prompt Templates' },
-    { href: '/admin/test-sandbox', icon: TestTube, label: 'Test Sandbox' },
-    { href: '/admin/audit-logs', icon: FileSearch, label: 'Audit Logs' },
-    { href: '/admin/users', icon: Users, label: 'Users' },
-    { href: '/admin/settings', icon: Settings, label: 'Settings' },
+    // Main
+    { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', section: 'main' },
+    
+    // Router Configuration
+    { href: '/admin/routing/rules', icon: Route, label: 'Routing Rules', section: 'router' },
+    { href: '/admin/patterns', icon: Hash, label: 'Pattern Rules', section: 'router' },
+    { href: '/admin/keywords', icon: Hash, label: 'Keyword Hints', section: 'router' },
+    { href: '/admin/prompts', icon: FileText, label: 'Prompt Templates', section: 'router' },
+    
+    // Domains
+    { href: '/admin/domains', icon: FolderTree, label: 'Domains Overview', section: 'domains' },
+    { href: '/admin/dba/connections', icon: Database, label: 'DBA Connections', section: 'domains' },
+    
+    // System
+    { href: '/admin/tenants', icon: Building2, label: 'Tenants', section: 'system' },
+    { href: '/admin/users', icon: Users, label: 'Users', section: 'system' },
+    { href: '/admin/test-sandbox', icon: TestTube, label: 'Test Sandbox', section: 'system' },
+    { href: '/admin/audit-logs', icon: FileSearch, label: 'Audit Logs', section: 'system' },
+    { href: '/admin/settings', icon: Settings, label: 'Settings', section: 'system' },
   ];
+  
+  // Group menu items by section
+  const menuSections = {
+    main: { label: 'Main', items: menuItems.filter(item => item.section === 'main') },
+    router: { label: 'Router Configuration', items: menuItems.filter(item => item.section === 'router') },
+    domains: { label: 'Domains', items: menuItems.filter(item => item.section === 'domains') },
+    system: { label: 'System', items: menuItems.filter(item => item.section === 'system') },
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -106,24 +128,37 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+          <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+            {Object.entries(menuSections).map(([sectionKey, section]) => {
+              if (section.items.length === 0) return null;
+              
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Icon className="h-5 w-5 mr-3" />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
+                <div key={sectionKey}>
+                  <h3 className="px-4 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {section.label}
+                  </h3>
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                            isActive
+                              ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <Icon className="h-5 w-5 mr-3" />
+                          <span className="font-medium">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </nav>

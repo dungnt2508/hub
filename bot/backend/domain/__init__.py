@@ -9,6 +9,7 @@ from .hr.use_cases import (
     ApproveLeaveUseCase,
 )
 from .catalog.entry_handler import CatalogEntryHandler
+from .dba.entry_handler import DBAEntryHandler
 
 __all__ = [
     "HREntryHandler",
@@ -16,5 +17,6 @@ __all__ = [
     "QueryLeaveBalanceUseCase",
     "ApproveLeaveUseCase",
     "CatalogEntryHandler",
+    "DBAEntryHandler",
 ]
 

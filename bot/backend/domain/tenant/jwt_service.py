@@ -15,9 +15,9 @@ import jwt
 import hashlib
 from functools import lru_cache
 
-from ..schemas.multi_tenant_types import JWTPayload, AuthMethod, ChannelType
-from ..shared.logger import logger
-from ..shared.exceptions import (
+from ...schemas.multi_tenant_types import JWTPayload, AuthMethod, ChannelType
+from ...shared.logger import logger
+from ...shared.exceptions import (
     AuthenticationError,
     TenantNotFoundError,
 )

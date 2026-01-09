@@ -73,6 +73,11 @@ class TenantNotFoundError(RouterError):
     pass
 
 
+class TenantAlreadyExistsError(RouterError):
+    """Tenant already exists"""
+    pass
+
+
 # Router Step Exceptions
 class PatternMatchError(RouterError):
     """Pattern matching step failed"""

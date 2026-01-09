@@ -4,7 +4,7 @@ Admin API - FastAPI endpoints for admin dashboard
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..schemas.admin_config_types import (
     PatternRuleCreate,
@@ -40,7 +40,7 @@ from ..interface.middleware.admin_auth import (
     require_any_role,
 )
 from ..shared.logger import logger
-from ..shared.exceptions import NotFoundError, ValidationError
+from ..shared.exceptions import NotFoundError, ValidationError, ExternalServiceError
 
 
 # Create router
@@ -1080,4 +1080,355 @@ async def get_routing_rule_suggestions(
         }
     except Exception as e:
         logger.error(f"Error getting routing rule suggestions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== DBA Connections ====================
+
+from ..schemas.dba_types import (
+    DatabaseConnectionCreate,
+    DatabaseConnectionUpdate,
+    DatabaseConnectionResponse,
+    DatabaseConnectionTestRequest,
+    DatabaseConnectionTestResponse,
+)
+from ..domain.dba.services.connection_registry import connection_registry
+
+
+@router.get("/dba/connections", response_model=dict)
+async def list_dba_connections(
+    db_type: Optional[str] = Query(None, description="Filter by database type"),
+    tenant_id: Optional[str] = Query(None, description="Filter by tenant ID"),
+    environment: Optional[str] = Query(None, description="Filter by environment"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    current_user: dict = Depends(require_any_role),
+):
+    """List database connections"""
+    try:
+        connections = await connection_registry.list_connections(
+            db_type=db_type,
+            tenant_id=tenant_id,
+            environment=environment,
+            status=status
+        )
+        
+        return {
+            "items": [conn.to_dict(include_connection_string=False) for conn in connections],
+            "total": len(connections),
+        }
+    except Exception as e:
+        logger.error(f"Error listing DBA connections: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dba/connections", response_model=DatabaseConnectionResponse, status_code=201)
+async def create_dba_connection(
+    connection: DatabaseConnectionCreate,
+    current_user: dict = Depends(require_admin_or_operator),
+):
+    """Create database connection"""
+    try:
+        result = await connection_registry.create_connection(
+            name=connection.name,
+            db_type=connection.db_type,
+            connection_string=connection.connection_string,
+            description=connection.description,
+            environment=connection.environment,
+            tags=connection.tags,
+            created_by=current_user.get("email") or current_user.get("id"),
+            tenant_id=connection.tenant_id
+        )
+        
+        return DatabaseConnectionResponse(**result.to_dict(include_connection_string=False))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating DBA connection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dba/connections/{connection_id}", response_model=DatabaseConnectionResponse)
+async def get_dba_connection(
+    connection_id: str,
+    current_user: dict = Depends(require_any_role),
+):
+    """Get database connection by ID"""
+    try:
+        connection = await connection_registry.repository.get_connection(
+            connection_id,
+            include_encrypted=False
+        )
+        
+        if not connection:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        
+        return DatabaseConnectionResponse(**connection.to_dict(include_connection_string=False))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting DBA connection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/dba/connections/{connection_id}", response_model=DatabaseConnectionResponse)
+async def update_dba_connection(
+    connection_id: str,
+    connection: DatabaseConnectionUpdate,
+    current_user: dict = Depends(require_admin_or_operator),
+):
+    """Update database connection"""
+    try:
+        updates = connection.dict(exclude_none=True)
+        result = await connection_registry.update_connection(connection_id, updates)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        
+        return DatabaseConnectionResponse(**result.to_dict(include_connection_string=False))
+    except HTTPException:
+        raise
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating DBA connection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/dba/connections/{connection_id}", status_code=204)
+async def delete_dba_connection(
+    connection_id: str,
+    current_user: dict = Depends(require_admin),
+):
+    """Delete database connection"""
+    try:
+        success = await connection_registry.delete_connection(connection_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting DBA connection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dba/connections/test", response_model=DatabaseConnectionTestResponse)
+async def test_dba_connection_string(
+    request: DatabaseConnectionTestRequest,
+    current_user: dict = Depends(require_any_role),
+):
+    """Test database connection string (before creating connection)"""
+    try:
+        success, error_message, connection_info = await connection_registry.test_connection_string(
+            db_type=request.db_type,
+            connection_string=request.connection_string
+        )
+        
+        if success:
+            return DatabaseConnectionTestResponse(
+                success=True,
+                message="Connection test successful",
+                connection_info=connection_info
+            )
+        else:
+            return DatabaseConnectionTestResponse(
+                success=False,
+                message=error_message or "Connection test failed"
+            )
+    except Exception as e:
+        logger.error(f"Error testing DBA connection string: {e}", exc_info=True)
+        return DatabaseConnectionTestResponse(
+            success=False,
+            message=f"Connection test error: {str(e)}"
+        )
+
+
+@router.post("/dba/connections/{connection_id}/test", response_model=DatabaseConnectionTestResponse)
+async def test_dba_connection(
+    connection_id: str,
+    current_user: dict = Depends(require_any_role),
+):
+    """Test database connection"""
+    try:
+        success = await connection_registry.test_connection(connection_id)
+        
+        if success:
+            # Get connection info if available
+            connection = await connection_registry.repository.get_connection(
+                connection_id,
+                include_encrypted=True
+            )
+            connection_info = None
+            if connection:
+                try:
+                    from ..domain.dba.adapters.mcp_db_client import MCPDBClient
+                    from ..domain.dba.ports.mcp_client import DatabaseType
+                    
+                    mcp_client = MCPDBClient()
+                    db_type = DatabaseType(connection.db_type.lower())
+                    connection_string = connection.get_decrypted_connection_string()
+                    
+                    connection_info = await mcp_client.get_connection_info(
+                        db_type=db_type,
+                        connection_string=connection_string
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to get connection info: {e}")
+            
+            return DatabaseConnectionTestResponse(
+                success=True,
+                message="Connection test successful",
+                connection_info=connection_info
+            )
+        else:
+            return DatabaseConnectionTestResponse(
+                success=False,
+                message="Connection test failed"
+            )
+    except Exception as e:
+        logger.error(f"Error testing DBA connection: {e}", exc_info=True)
+        return DatabaseConnectionTestResponse(
+            success=False,
+            message=f"Connection test error: {str(e)}"
+        )
+
+
+# ==================== Tenants ====================
+
+from ..domain.tenant.tenant_service import TenantService
+from ..infrastructure.database_client import database_client
+
+
+# Initialize tenant service (lazy - will be initialized on first use)
+_tenant_service: Optional[TenantService] = None
+
+def get_tenant_service() -> TenantService:
+    """Get tenant service instance (lazy initialization)"""
+    global _tenant_service
+    if _tenant_service is None:
+        if database_client.pool is None:
+            raise ExternalServiceError("Database not connected. Call connect() first.")
+        _tenant_service = TenantService(database_client.pool)
+    return _tenant_service
+
+
+class TenantCreate(BaseModel):
+    """Create tenant request"""
+    name: str = Field(..., min_length=3, max_length=255, description="Tenant name (must be unique)")
+    web_embed_origins: List[str] = Field(..., min_items=1, description="List of allowed web embed origins")
+    plan: str = Field("basic", description="Plan type")
+    telegram_enabled: bool = False
+    teams_enabled: bool = False
+
+
+class TenantUpdate(BaseModel):
+    """Update tenant request"""
+    name: Optional[str] = None
+    plan: Optional[str] = None
+    web_embed_enabled: Optional[bool] = None
+    web_embed_origins: Optional[List[str]] = None
+    telegram_enabled: Optional[bool] = None
+    teams_enabled: Optional[bool] = None
+
+
+@router.get("/tenants", response_model=dict)
+async def list_tenants(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(require_admin),
+):
+    """List tenants (admin only)"""
+    try:
+        tenant_service = get_tenant_service()
+        tenants = await tenant_service.list_tenants(limit=limit, offset=offset)
+        return {
+            "items": tenants,
+            "total": len(tenants),
+        }
+    except Exception as e:
+        logger.error(f"Error listing tenants: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants", response_model=dict, status_code=201)
+async def create_tenant(
+    tenant: TenantCreate,
+    current_user: dict = Depends(require_admin),
+):
+    """Create tenant (admin only)"""
+    try:
+        tenant_service = get_tenant_service()
+        # site_id will be auto-generated from UUID in backend
+        result = await tenant_service.create_tenant(
+            name=tenant.name.strip(),
+            site_id=None,  # Will be auto-generated
+            web_embed_origins=tenant.web_embed_origins,
+            plan=tenant.plan,
+            telegram_enabled=tenant.telegram_enabled,
+            teams_enabled=tenant.teams_enabled,
+        )
+        return result
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating tenant: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}", response_model=dict)
+async def get_tenant(
+    tenant_id: str,
+    current_user: dict = Depends(require_admin),
+):
+    """Get tenant by ID (admin only)"""
+    try:
+        tenant_service = get_tenant_service()
+        tenant_config = await tenant_service.get_tenant_config(tenant_id)
+        if not tenant_config:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        return {
+            "id": tenant_config.id,
+            "name": tenant_config.name,
+            "plan": tenant_config.plan,
+            "web_embed_enabled": tenant_config.web_embed_enabled,
+            "web_embed_origins": tenant_config.web_embed_origins,
+            "telegram_enabled": tenant_config.telegram_enabled,
+            "teams_enabled": tenant_config.teams_enabled,
+            "rate_limit_per_hour": tenant_config.rate_limit_per_hour,
+            "rate_limit_per_day": tenant_config.rate_limit_per_day,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting tenant: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/tenants/{tenant_id}", response_model=dict)
+async def update_tenant(
+    tenant_id: str,
+    tenant: TenantUpdate,
+    current_user: dict = Depends(require_admin),
+):
+    """Update tenant (admin only)"""
+    try:
+        tenant_service = get_tenant_service()
+        updates = tenant.dict(exclude_none=True)
+        success = await tenant_service.update_tenant(tenant_id, updates)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # Return updated tenant
+        tenant_config = await tenant_service.get_tenant_config(tenant_id)
+        return {
+            "id": tenant_config.id,
+            "name": tenant_config.name,
+            "plan": tenant_config.plan,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating tenant: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
