@@ -14,8 +14,14 @@ from .optimizations import (
     get_query_cache,
     get_performance_monitor,
 )
+from .document_chunker import DocumentChunker, DocumentChunk
+from .knowledge_ingester import KnowledgeIngester
+from .rag_orchestrator import RAGOrchestrator, RetrievedDocument
+from .hr_knowledge_engine import HRKnowledgeEngine
+from .knowledge_sync_scheduler import KnowledgeSyncScheduler, get_scheduler
 
 __all__ = [
+    # Catalog
     "CatalogKnowledgeEngine",
     "CatalogRetriever",
     "RetrievedProduct",
@@ -24,10 +30,20 @@ __all__ = [
     "SyncStatus",
     "build_product_text",
     "build_product_metadata",
+    # Optimizations
     "BatchEmbeddingGenerator",
     "QueryCache",
     "PerformanceMonitor",
     "get_batch_embedding_generator",
     "get_query_cache",
     "get_performance_monitor",
+    # RAG Pipeline
+    "DocumentChunker",
+    "DocumentChunk",
+    "KnowledgeIngester",
+    "RAGOrchestrator",
+    "RetrievedDocument",
+    "HRKnowledgeEngine",
+    "KnowledgeSyncScheduler",
+    "get_scheduler",
 ]

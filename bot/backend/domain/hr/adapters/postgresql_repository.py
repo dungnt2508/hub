@@ -2,7 +2,7 @@
 PostgreSQL HR Repository Implementation
 """
 import uuid
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 
 from ....infrastructure.database_client import database_client
@@ -282,6 +282,97 @@ class PostgreSQLHRRepository(IHRRepository):
                 exc_info=True
             )
             raise ExternalServiceError(f"Database update failed: {e}") from e
+    
+    async def get_leave_requests(
+        self, 
+        employee_id: str, 
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> list:
+        """
+        Get leave requests for an employee.
+        
+        Args:
+            employee_id: Employee UUID
+            status: Optional filter by status (pending, approved, rejected)
+            limit: Maximum number of results
+            offset: Offset for pagination
+            
+        Returns:
+            List of leave request entities
+            
+        Raises:
+            ExternalServiceError: If database query fails
+        """
+        try:
+            pool = self.db.pool
+            async with pool.acquire() as conn:
+                if status:
+                    rows = await conn.fetch(
+                        """
+                        SELECT 
+                            leave_request_id,
+                            employee_id,
+                            start_date,
+                            end_date,
+                            reason,
+                            status,
+                            approved_by,
+                            created_at
+                        FROM leave_requests
+                        WHERE employee_id = $1 AND status = $2
+                        ORDER BY created_at DESC
+                        LIMIT $3 OFFSET $4
+                        """,
+                        uuid.UUID(employee_id),
+                        status,
+                        limit,
+                        offset
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                        SELECT 
+                            leave_request_id,
+                            employee_id,
+                            start_date,
+                            end_date,
+                            reason,
+                            status,
+                            approved_by,
+                            created_at
+                        FROM leave_requests
+                        WHERE employee_id = $1
+                        ORDER BY created_at DESC
+                        LIMIT $2 OFFSET $3
+                        """,
+                        uuid.UUID(employee_id),
+                        limit,
+                        offset
+                    )
+                
+                return [
+                    LeaveRequest(
+                        leave_request_id=str(row['leave_request_id']),
+                        employee_id=str(row['employee_id']),
+                        start_date=row['start_date'],
+                        end_date=row['end_date'],
+                        reason=row['reason'],
+                        status=row['status'],
+                        approved_by=str(row['approved_by']) if row['approved_by'] else None,
+                        created_at=row['created_at'].isoformat() if row['created_at'] else None
+                    )
+                    for row in rows
+                ]
+                
+        except Exception as e:
+            logger.error(
+                f"Failed to get leave requests: {e}",
+                extra={"employee_id": employee_id, "status": status},
+                exc_info=True
+            )
+            raise ExternalServiceError(f"Database query failed: {e}") from e
     
     # Helper method for internal use
     async def get_employee_by_employee_id(self, employee_id: str) -> Optional[Employee]:

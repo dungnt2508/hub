@@ -22,9 +22,16 @@ class SessionState:
     escalation_flag: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-
+    
     def __post_init__(self):
-        """Validate session state"""
+        """Post-init processing and validation"""
+        # Handle datetime deserialization from JSON strings
+        if isinstance(self.created_at, str):
+            self.created_at = datetime.fromisoformat(self.created_at)
+        if isinstance(self.updated_at, str):
+            self.updated_at = datetime.fromisoformat(self.updated_at)
+        
+        # Validate session state
         if not self.session_id:
             raise ValueError("session_id is required")
         if not self.user_id:

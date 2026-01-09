@@ -2,7 +2,20 @@
 Runtime Configuration
 """
 import os
+from pathlib import Path
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+# Look for .env in current directory, then project root
+env_path = Path(__file__).parent.parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"[OK] Loaded .env from: {env_path}")
+else:
+    print(f"[WARNING] .env file not found at: {env_path}")
+    # Try loading from current working directory as fallback
+    load_dotenv()
 
 
 class RouterConfig:
@@ -17,6 +30,9 @@ class RouterConfig:
         self.HOST = os.getenv("HOST", "0.0.0.0")
         self.PORT = int(os.getenv("PORT", "8386"))
         self.RELOAD = os.getenv("RELOAD", "false").lower() == "true"
+        
+        # ==================== DATABASE ====================
+        self.DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_pw@127.0.0.1:5432/bot_db")
         
         # ==================== REDIS ====================
         self.REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -40,7 +56,7 @@ class RouterConfig:
         self.STEP_META_TIMEOUT = int(os.getenv("STEP_META_TIMEOUT", "20"))
         self.STEP_PATTERN_TIMEOUT = int(os.getenv("STEP_PATTERN_TIMEOUT", "30"))
         self.STEP_KEYWORD_TIMEOUT = int(os.getenv("STEP_KEYWORD_TIMEOUT", "20"))
-        self.STEP_EMBEDDING_TIMEOUT = int(os.getenv("STEP_EMBEDDING_TIMEOUT", "200"))
+        self.STEP_EMBEDDING_TIMEOUT = int(os.getenv("STEP_EMBEDDING_TIMEOUT", "10000"))
         self.STEP_LLM_TIMEOUT = int(os.getenv("STEP_LLM_TIMEOUT", "15000"))  # 15 seconds for LLM classification
         
         # ==================== AI ROUTING ====================
@@ -52,7 +68,7 @@ class RouterConfig:
         self.LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
         
         # ==================== LITELLM ====================
-        self.LITELLM_API_BASE = os.getenv("LITELLM_API_BASE", "http://localhost:4000")
+        self.LITELLM_API_BASE = os.getenv("LITELLM_API_BASE", "http://127.0.0.1:4000")
         self.LITELLM_API_KEY = os.getenv("LITELLM_API_KEY", "litellm-proxy-key")
         self.LITELLM_CHAT_MODEL = os.getenv("LITELLM_CHAT_MODEL", "gpt-4o-mini")
         self.LITELLM_EMBEDDING_MODEL = os.getenv("LITELLM_EMBEDDING_MODEL", "text-embedding-3-large")
@@ -62,6 +78,12 @@ class RouterConfig:
         self.OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
         self.OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
         self.OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "30"))
+        
+        # # Debug: Log loaded config
+        # print(f"\n[INFO] AI Provider Config Loaded:")
+        # print(f"  LITELLM_API_BASE: {self.LITELLM_API_BASE}")
+        # print(f"  LITELLM_API_KEY: {'SET' if self.LITELLM_API_KEY and self.LITELLM_API_KEY != 'litellm-proxy-key' else 'DEFAULT'}")
+        # print(f"  OPENAI_API_KEY: {'SET' if self.OPENAI_API_KEY else 'NOT SET'}\n")
         
         # ==================== EMBEDDING ====================
         self.EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "openai")

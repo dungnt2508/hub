@@ -162,28 +162,48 @@ class AIProvider:
             ExternalServiceError: If all providers fail
             RouterTimeoutError: If request times out
         """
+        errors = []
+        
         # Try primary provider
         if not self.primary_circuit_breaker.is_open():
             try:
+                logger.debug(f"🔹 Trying primary provider (LiteLLM) for embedding...")
                 embedding = await self._embed_primary(text)
                 self.primary_circuit_breaker.record_success()
+                logger.debug(f"✅ Primary provider embedding succeeded")
                 return embedding
             except Exception as e:
-                logger.warning(f"Primary provider failed: {e}")
+                error_msg = f"Primary provider (LiteLLM) embedding failed: {str(e)}"
+                logger.warning(error_msg, exc_info=True)
+                errors.append(error_msg)
                 self.primary_circuit_breaker.record_failure()
+        else:
+            error_msg = f"Primary provider circuit breaker is open"
+            logger.warning(error_msg)
+            errors.append(error_msg)
         
         # Try fallback provider
         if not self.fallback_circuit_breaker.is_open():
             try:
+                logger.debug(f"🔹 Trying fallback provider (OpenAI) for embedding...")
                 embedding = await self._embed_fallback(text)
                 self.fallback_circuit_breaker.record_success()
+                logger.debug(f"✅ Fallback provider embedding succeeded")
                 return embedding
             except Exception as e:
-                logger.warning(f"Fallback provider failed: {e}")
+                error_msg = f"Fallback provider (OpenAI) embedding failed: {str(e)}"
+                logger.warning(error_msg, exc_info=True)
+                errors.append(error_msg)
                 self.fallback_circuit_breaker.record_failure()
+        else:
+            error_msg = f"Fallback provider circuit breaker is open"
+            logger.warning(error_msg)
+            errors.append(error_msg)
         
         # All providers failed
-        raise ExternalServiceError("All AI providers failed")
+        full_error = "All AI providers failed for embedding:\n" + "\n".join(errors)
+        logger.error(full_error)
+        raise ExternalServiceError(full_error)
     
     async def chat(
         self,
@@ -206,28 +226,48 @@ class AIProvider:
         """
         temp = temperature or config.LLM_TEMPERATURE
         
+        errors = []
+        
         # Try primary provider
         if not self.primary_circuit_breaker.is_open():
             try:
+                logger.debug(f"🔹 Trying primary provider (LiteLLM)...")
                 response = await self._chat_primary(messages, temp)
                 self.primary_circuit_breaker.record_success()
+                logger.debug(f"✅ Primary provider succeeded")
                 return response
             except Exception as e:
-                logger.warning(f"Primary provider failed: {e}")
+                error_msg = f"Primary provider (LiteLLM) failed: {str(e)}"
+                logger.warning(error_msg, exc_info=True)
+                errors.append(error_msg)
                 self.primary_circuit_breaker.record_failure()
+        else:
+            error_msg = f"Primary provider circuit breaker is open"
+            logger.warning(error_msg)
+            errors.append(error_msg)
         
         # Try fallback provider
         if not self.fallback_circuit_breaker.is_open():
             try:
+                logger.debug(f"🔹 Trying fallback provider (OpenAI)...")
                 response = await self._chat_fallback(messages, temp)
                 self.fallback_circuit_breaker.record_success()
+                logger.debug(f"✅ Fallback provider succeeded")
                 return response
             except Exception as e:
-                logger.warning(f"Fallback provider failed: {e}")
+                error_msg = f"Fallback provider (OpenAI) failed: {str(e)}"
+                logger.warning(error_msg, exc_info=True)
+                errors.append(error_msg)
                 self.fallback_circuit_breaker.record_failure()
+        else:
+            error_msg = f"Fallback provider circuit breaker is open"
+            logger.warning(error_msg)
+            errors.append(error_msg)
         
         # All providers failed
-        raise ExternalServiceError("All AI providers failed")
+        full_error = "All AI providers failed:\n" + "\n".join(errors)
+        logger.error(full_error)
+        raise ExternalServiceError(full_error)
     
     @retry(
         stop=stop_after_attempt(3),
@@ -236,6 +276,13 @@ class AIProvider:
     )
     async def _embed_primary(self, text: str) -> List[float]:
         """Embed using LiteLLM"""
+        # Check LiteLLM config
+        if not config.LITELLM_API_KEY or config.LITELLM_API_KEY == "litellm-proxy-key":
+            raise ExternalServiceError(
+                f"❌ LiteLLM API key not configured properly. "
+                f"Set LITELLM_API_KEY env var"
+            )
+        
         client = await self._get_client()
         
         url = f"{config.LITELLM_API_BASE}/embeddings"
@@ -307,6 +354,14 @@ class AIProvider:
     )
     async def _chat_primary(self, messages: List[Dict[str, str]], temperature: float) -> str:
         """Chat using LiteLLM"""
+        # Check LiteLLM config
+        if not config.LITELLM_API_KEY or config.LITELLM_API_KEY == "litellm-proxy-key":
+            raise ExternalServiceError(
+                f"❌ LiteLLM API key not configured properly. "
+                f"Set LITELLM_API_KEY env var. "
+                f"Currently: LITELLM_API_BASE={config.LITELLM_API_BASE}"
+            )
+        
         client = await self._get_client()
         
         url = f"{config.LITELLM_API_BASE}/chat/completions"
@@ -343,7 +398,10 @@ class AIProvider:
     async def _chat_fallback(self, messages: List[Dict[str, str]], temperature: float) -> str:
         """Chat using OpenAI"""
         if not config.OPENAI_API_KEY:
-            raise ExternalServiceError("OpenAI API key not configured")
+            raise ExternalServiceError(
+                f"❌ OpenAI API key not configured. "
+                f"Set OPENAI_API_KEY env var in .env file"
+            )
         
         client = await self._get_client()
         

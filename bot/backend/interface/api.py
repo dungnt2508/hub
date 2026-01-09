@@ -30,14 +30,20 @@ app = FastAPI(
 # CORS middleware
 # Allow catalog frontend and other origins
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",")
-# Also allow any origin for web embed (will be validated per-tenant)
-cors_origins.append("*")  # For web embed - origin validation happens in handler
+
+# Validate CORS configuration
+if "*" in cors_origins:
+    logger.warning("⚠️ WARNING: CORS with wildcard origins is INSECURE!")
+    # In production, fail fast
+    if config.ENVIRONMENT == "production":
+        raise ConfigError("Wildcard CORS origins not allowed in production")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=cors_origins,  # Use explicit list only
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Explicit methods
+    allow_headers=["Content-Type", "Authorization"],  # Explicit headers
 )
 
 # Initialize API handler

@@ -116,6 +116,38 @@ class PermissionChecker:
         
         return True
     
+    async def can_reject_leave(
+        self,
+        rejector_user_id: str
+    ) -> bool:
+        """
+        Check if user can reject leave requests.
+        
+        Rules:
+        - Only managers and admins can reject
+        
+        Args:
+            rejector_user_id: User ID of the rejector
+            
+        Returns:
+            True if allowed, False otherwise
+            
+        Raises:
+            AuthorizationError: If permission denied
+        """
+        rejector = await self.repository.get_employee(rejector_user_id)
+        if not rejector:
+            raise AuthorizationError(f"Rejector not found: {rejector_user_id}")
+        
+        if rejector.role not in ["manager", "admin"]:
+            raise AuthorizationError(
+                f"Bạn không có quyền từ chối đơn nghỉ phép. "
+                f"Chỉ manager hoặc admin mới có quyền này. "
+                f"Role hiện tại: {rejector.role}"
+            )
+        
+        return True
+    
     async def can_create_leave_request(
         self,
         user_id: str
@@ -257,4 +289,15 @@ class RBACMiddleware:
         Raises AuthorizationError if not allowed.
         """
         await self.permission_checker.can_view_leave_request(requester_user_id, leave_request_employee_id)
+    
+    async def enforce_reject_leave_permission(
+        self,
+        rejector_user_id: str
+    ) -> None:
+        """
+        Enforce permission to reject leave requests.
+        
+        Raises AuthorizationError if not allowed.
+        """
+        await self.permission_checker.can_reject_leave(rejector_user_id)
 

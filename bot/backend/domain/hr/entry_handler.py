@@ -13,6 +13,8 @@ from .use_cases import (
     CreateLeaveRequestUseCase,
     QueryLeaveBalanceUseCase,
     ApproveLeaveUseCase,
+    QueryLeaveRequestsUseCase,
+    RejectLeaveUseCase,
 )
 
 
@@ -43,7 +45,9 @@ class HREntryHandler:
         self.use_cases = {
             "create_leave_request": CreateLeaveRequestUseCase(repository, rbac_middleware),
             "query_leave_balance": QueryLeaveBalanceUseCase(repository, rbac_middleware),
+            "query_leave_requests": QueryLeaveRequestsUseCase(repository, rbac_middleware),
             "approve_leave": ApproveLeaveUseCase(repository, rbac_middleware),
+            "reject_leave": RejectLeaveUseCase(repository, rbac_middleware),
         }
     
     async def handle(self, request: DomainRequest) -> DomainResponse:

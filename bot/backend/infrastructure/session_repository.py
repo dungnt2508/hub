@@ -1,181 +1,137 @@
 """
-Session Repository - Redis-based session storage
+Session Repository - Stores and retrieves session state
 """
-import json
+from abc import ABC, abstractmethod
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
+import logging
+from dataclasses import asdict
 
 from ..schemas import SessionState
-from ..shared.exceptions import SessionNotFoundError, SessionCorruptedError, ExternalServiceError
-from ..shared.logger import logger
-from ..shared.config import config
 from .redis_client import redis_client
+from ..shared.config import config
+
+logger = logging.getLogger(__name__)
 
 
-class SessionRepository:
+class ISessionRepository(ABC):
+    """Interface for session storage"""
+    
+    @abstractmethod
+    async def get(self, session_id: str) -> Optional[SessionState]:
+        """Get session by ID"""
+        pass
+    
+    @abstractmethod
+    async def save(self, session: SessionState) -> None:
+        """Save or update session"""
+        pass
+    
+    @abstractmethod
+    async def delete(self, session_id: str) -> None:
+        """Delete session"""
+        pass
+    
+    @abstractmethod
+    async def clear_expired(self) -> int:
+        """Clear expired sessions, return count"""
+        pass
+
+
+class RedisSessionRepository(ISessionRepository):
     """Redis-based session repository"""
     
     def __init__(self):
-        self.redis = redis_client
-        self.key_prefix = "session:"
-        self.ttl = config.SESSION_TTL_SECONDS
+        """Initialize Redis session repository"""
+        self.prefix = "session:"
+        self.ttl_seconds = config.SESSION_TTL_SECONDS
     
-    def _make_key(self, session_id: str) -> str:
-        """Create Redis key for session"""
-        return f"{self.key_prefix}{session_id}"
-    
-    async def get(self, session_id: str, user_id: str) -> Optional[SessionState]:
+    async def get(self, session_id: str) -> Optional[SessionState]:
         """
-        Load session from Redis.
+        Get session from Redis
         
         Args:
-            session_id: Session ID
-            user_id: User ID for validation
+            session_id: Session identifier
             
         Returns:
-            SessionState if found, None otherwise
-            
-        Raises:
-            SessionCorruptedError: If session data is corrupted
-            ExternalServiceError: If Redis fails
+            SessionState or None if not found
         """
         try:
-            key = self._make_key(session_id)
-            data = await self.redis.client.get(key)
+            key = f"{self.prefix}{session_id}"
+            data = await redis_client.client.get(key)
             
             if not data:
+                logger.debug(f"Session not found: {session_id}")
                 return None
             
-            # Parse session data
-            try:
-                session_dict = json.loads(data)
-            except json.JSONDecodeError as e:
-                logger.error(
-                    f"Failed to parse session data: {e}",
-                    extra={"session_id": session_id}
-                )
-                raise SessionCorruptedError(f"Session data corrupted: {e}") from e
+            # Deserialize session (handle both bytes and string)
+            if isinstance(data, bytes):
+                data = data.decode('utf-8')
+            session_dict = json.loads(data)
             
-            # Validate user_id matches
-            if session_dict.get("user_id") != user_id:
-                logger.warning(
-                    "Session user_id mismatch",
-                    extra={
-                        "session_id": session_id,
-                        "expected_user_id": user_id,
-                        "found_user_id": session_dict.get("user_id"),
-                    }
-                )
-                return None
-            
-            # Convert datetime strings back to datetime objects
-            if "created_at" in session_dict and isinstance(session_dict["created_at"], str):
-                session_dict["created_at"] = datetime.fromisoformat(session_dict["created_at"])
-            if "updated_at" in session_dict and isinstance(session_dict["updated_at"], str):
-                session_dict["updated_at"] = datetime.fromisoformat(session_dict["updated_at"])
-            
-            # Convert to SessionState
+            # Convert dict to SessionState dataclass
             session = SessionState(**session_dict)
-            logger.debug(
-                "Session loaded",
-                extra={"session_id": session_id, "user_id": user_id}
-            )
+            
+            logger.debug(f"Session retrieved: {session_id}")
             return session
             
-        except (SessionCorruptedError, ExternalServiceError):
-            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to deserialize session {session_id}: {e}")
+            return None
         except Exception as e:
-            logger.error(
-                f"Failed to load session: {e}",
-                extra={"session_id": session_id},
-                exc_info=True
-            )
-            raise ExternalServiceError(f"Session load failed: {e}") from e
+            logger.error(f"Error retrieving session {session_id}: {e}")
+            return None
     
     async def save(self, session: SessionState) -> None:
         """
-        Save session to Redis.
+        Save session to Redis with TTL
         
         Args:
             session: SessionState to save
-            
-        Raises:
-            ExternalServiceError: If Redis fails
         """
         try:
-            key = self._make_key(session.session_id)
+            key = f"{self.prefix}{session.session_id}"
             
-            # Update timestamp
-            session.update_timestamp()
+            # Serialize dataclass to JSON
+            session_dict = asdict(session)
+            data = json.dumps(session_dict, default=str)  # default=str for datetime serialization
             
-            # Convert to dict
-            session_dict = {
-                "session_id": session.session_id,
-                "user_id": session.user_id,
-                "active_domain": session.active_domain,
-                "last_domain": session.last_domain,
-                "last_intent": session.last_intent,
-                "last_intent_type": session.last_intent_type,
-                "pending_intent": session.pending_intent,
-                "missing_slots": session.missing_slots,
-                "slots_memory": session.slots_memory,
-                "retry_count": session.retry_count,
-                "escalation_flag": session.escalation_flag,
-                "created_at": session.created_at.isoformat(),
-                "updated_at": session.updated_at.isoformat(),
-            }
-            
-            # Serialize and save
-            data = json.dumps(session_dict, ensure_ascii=False)
-            await self.redis.client.setex(key, self.ttl, data)
-            
-            logger.debug(
-                "Session saved",
-                extra={
-                    "session_id": session.session_id,
-                    "user_id": session.user_id,
-                    "ttl": self.ttl,
-                }
+            # Save with TTL
+            await redis_client.client.setex(
+                key,
+                self.ttl_seconds,
+                data
             )
+            
+            logger.debug(f"Session saved: {session.session_id} (TTL: {self.ttl_seconds}s)")
             
         except Exception as e:
-            logger.error(
-                f"Failed to save session: {e}",
-                extra={"session_id": session.session_id},
-                exc_info=True
-            )
-            raise ExternalServiceError(f"Session save failed: {e}") from e
+            logger.error(f"Error saving session {session.session_id}: {e}")
+            raise
     
     async def delete(self, session_id: str) -> None:
         """
-        Delete session from Redis.
+        Delete session from Redis
         
         Args:
-            session_id: Session ID to delete
+            session_id: Session identifier
         """
         try:
-            key = self._make_key(session_id)
-            await self.redis.client.delete(key)
-            logger.debug("Session deleted", extra={"session_id": session_id})
+            key = f"{self.prefix}{session_id}"
+            await redis_client.client.delete(key)
+            logger.debug(f"Session deleted: {session_id}")
         except Exception as e:
-            logger.warning(
-                f"Failed to delete session: {e}",
-                extra={"session_id": session_id}
-            )
+            logger.error(f"Error deleting session {session_id}: {e}")
     
-    async def extend_ttl(self, session_id: str) -> None:
+    async def clear_expired(self) -> int:
         """
-        Extend session TTL.
+        Clear expired sessions (Redis handles auto-expiry)
+        In Redis, keys expire automatically, but we can log stats.
         
-        Args:
-            session_id: Session ID
+        Returns:
+            Number of sessions cleared (0 if handled by Redis)
         """
-        try:
-            key = self._make_key(session_id)
-            await self.redis.client.expire(key, self.ttl)
-        except Exception as e:
-            logger.warning(
-                f"Failed to extend session TTL: {e}",
-                extra={"session_id": session_id}
-            )
-
+        # Note: Redis automatically expires keys, so this is mostly for logging
+        logger.info("Redis auto-expires sessions via TTL")
+        return 0
