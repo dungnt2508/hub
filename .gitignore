@@ -189,3 +189,4 @@ lerna-debug.log*
 /infra/docker_data
 /bot/docker_data
 /catalog/backend/.env.example
+Env3_12/
