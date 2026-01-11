@@ -1,0 +1,247 @@
+{
+  "dba_sandbox": {
+    "version": "1.0",
+    "domain": "dba",
+    "risk_categories": {
+      "connection_safety": {
+        "severity": "CRITICAL",
+        "weight": 0.35,
+        "description": "Ensures safe database selection and permissions",
+        "checks": {
+          "connection_alive": {
+            "id": "conn_alive",
+            "name": "Connection is Alive",
+            "weight": 0.175,
+            "description": "Database is reachable and responding",
+            "method": "Try to establish connection",
+            "success_criteria": "Connection succeeds within timeout",
+            "failure_impact": "Cannot execute any query",
+            "risk_if_missing": "CRITICAL"
+          },
+          "user_permissions": {
+            "id": "user_perms",
+            "name": "User Has Permissions",
+            "weight": 0.1,
+            "description": "User has SELECT permission on required tables",
+            "method": "Check system catalog",
+            "success_criteria": "All required tables have SELECT grant",
+            "failure_impact": "Query execution fails",
+            "risk_if_missing": "HIGH"
+          },
+          "db_type_correct": {
+            "id": "db_type",
+            "name": "Database Type Matches",
+            "weight": 0.05,
+            "description": "Selected DB type matches intent requirements",
+            "method": "Compare connection.db_type vs intent",
+            "success_criteria": "DB type is in allowed list",
+            "failure_impact": "Query syntax/logic may be wrong",
+            "risk_if_missing": "MEDIUM"
+          },
+          "not_production": {
+            "id": "not_prod",
+            "name": "Not on Production Without Warning",
+            "weight": 0.025,
+            "description": "Prevent accidental execution on production",
+            "method": "Check connection.is_production flag",
+            "success_criteria": "Is prod = false OR user confirmed",
+            "failure_impact": "Accidental production modification",
+            "risk_if_missing": "CRITICAL"
+          }
+        }
+      },
+      "query_safety": {
+        "severity": "HIGH",
+        "weight": 0.3,
+        "description": "Prevents SQL injection and resource exhaustion",
+        "checks": {
+          "sql_injection_safe": {
+            "id": "sql_injection",
+            "name": "No SQL Injection Detected",
+            "weight": 0.12,
+            "description": "Query is free from SQL injection patterns",
+            "method": "Parse SQL and check for dangerous patterns",
+            "success_criteria": "No dangerous patterns found",
+            "failure_impact": "Database could be compromised",
+            "risk_if_missing": "CRITICAL",
+            "patterns_to_block": [
+              "UNION SELECT",
+              "EXEC\\s*\\(",
+              "EXECUTE\\s*\\(",
+              "DROP\\s+(TABLE|DATABASE|INDEX)",
+              "DELETE.*WHERE.*=.*'",
+              "UPDATE.*SET.*WHERE"
+            ]
+          },
+          "performance_acceptable": {
+            "id": "query_perf",
+            "name": "Query Performance Acceptable",
+            "weight": 0.12,
+            "description": "Query won't cause database DoS",
+            "method": "Estimate cost (rows, complexity, duration)",
+            "success_criteria": "Estimated time < 30s AND rows < 1M",
+            "failure_impact": "Database performance degradation",
+            "risk_if_missing": "HIGH",
+            "thresholds": {
+              "max_estimated_rows": 1000000,
+              "max_execution_time_ms": 30000,
+              "max_joins": 5,
+              "max_table_size_gb": 100
+            }
+          },
+          "syntax_valid": {
+            "id": "sql_syntax",
+            "name": "SQL Syntax Valid",
+            "weight": 0.03,
+            "description": "Query has valid SQL syntax for target DB",
+            "method": "Try to parse/validate SQL",
+            "success_criteria": "Parse succeeds without errors",
+            "failure_impact": "Query execution fails",
+            "risk_if_missing": "MEDIUM"
+          },
+          "no_sensitive_columns": {
+            "id": "sensitive_cols",
+            "name": "No Sensitive Columns Exposed",
+            "weight": 0.03,
+            "description": "Query doesn't expose PII",
+            "method": "Scan for known sensitive columns",
+            "success_criteria": "No sensitive columns in SELECT",
+            "failure_impact": "Data breach, privacy violation",
+            "risk_if_missing": "CRITICAL",
+            "sensitive_columns": [
+              "password",
+              "ssn",
+              "credit_card",
+              "salary",
+              "social_security",
+              "email",
+              "phone"
+            ]
+          }
+        }
+      },
+      "metrics_and_alerts": {
+        "severity": "MEDIUM",
+        "weight": 0.2,
+        "description": "Ensures metrics and alerts work correctly",
+        "checks": {
+          "metrics_persisted": {
+            "id": "metrics_persist",
+            "name": "Metrics Will Be Persisted",
+            "weight": 0.1,
+            "description": "Query metrics are saved for trending",
+            "method": "Verify metrics table is writable",
+            "success_criteria": "Can insert to metrics table",
+            "failure_impact": "Loss of performance history",
+            "risk_if_missing": "MEDIUM"
+          },
+          "alert_threshold_correct": {
+            "id": "alert_threshold",
+            "name": "Alert Thresholds Are Correct",
+            "weight": 0.1,
+            "description": "Alert will trigger at appropriate threshold",
+            "method": "Check alert configuration",
+            "success_criteria": "Thresholds within reasonable range",
+            "failure_impact": "Critical issues not alerted",
+            "risk_if_missing": "HIGH"
+          }
+        }
+      }
+    },
+    "failure_scenarios": {
+      "connection_timeout": {
+        "id": "fail_conn_timeout",
+        "name": "Connection Timeout",
+        "description": "Database doesn't respond within timeout",
+        "how_to_trigger": "Simulate network latency > 30s",
+        "expected_behavior": "Graceful error, fallback suggestion",
+        "acceptable_outcomes": [
+          "Error message is clear and actionable",
+          "Suggestion to check connection",
+          "Logged for debugging"
+        ]
+      },
+      "permission_denied": {
+        "id": "fail_permission",
+        "name": "Permission Denied",
+        "description": "User lacks required permissions",
+        "how_to_trigger": "User doesn't have SELECT on table",
+        "expected_behavior": "Error message shows missing permission",
+        "acceptable_outcomes": [
+          "Error message specifies missing permission",
+          "Suggestions for granting permission",
+          "Logged with user context"
+        ]
+      },
+      "wrong_db_type": {
+        "id": "fail_db_type",
+        "name": "Wrong Database Type",
+        "description": "Connection type doesn't match query",
+        "how_to_trigger": "SQL Server syntax on PostgreSQL",
+        "expected_behavior": "Validation error before execution",
+        "acceptable_outcomes": [
+          "Error specifies DB type mismatch",
+          "Shows compatible DB types",
+          "Suggests alternative syntax"
+        ]
+      },
+      "query_too_slow": {
+        "id": "fail_slow_query",
+        "name": "Query Performance Too High",
+        "description": "Query would take too long",
+        "how_to_trigger": "Query scans entire table",
+        "expected_behavior": "Warning with cost estimate",
+        "acceptable_outcomes": [
+          "Shows estimated cost",
+          "Suggests optimization",
+          "Allows override with confirmation"
+        ]
+      },
+      "metrics_storage_failed": {
+        "id": "fail_metrics",
+        "name": "Metrics Storage Failed",
+        "description": "Unable to persist metrics",
+        "how_to_trigger": "Metrics table is unreachable",
+        "expected_behavior": "Query executes but warning issued",
+        "acceptable_outcomes": [
+          "Query still completes",
+          "Warning about metrics storage",
+          "Fallback to memory storage"
+        ]
+      }
+    },
+    "scoring": {
+      "formula": "1.0 - sum(check_weight * check_result)",
+      "risk_thresholds": {
+        "critical": {
+          "min": 0.8,
+          "max": 1.0,
+          "icon": "🔴",
+          "name": "CRITICAL",
+          "action": "BLOCK"
+        },
+        "high": {
+          "min": 0.5,
+          "max": 0.8,
+          "icon": "🔴",
+          "name": "HIGH",
+          "action": "REQUIRE_APPROVAL"
+        },
+        "medium": {
+          "min": 0.2,
+          "max": 0.5,
+          "icon": "🟡",
+          "name": "MEDIUM",
+          "action": "WARN_USER"
+        },
+        "low": {
+          "min": 0.0,
+          "max": 0.2,
+          "icon": "🟢",
+          "name": "LOW",
+          "action": "ALLOW"
+        }
+      }
+    }
+  }
+}

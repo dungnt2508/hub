@@ -41,6 +41,7 @@ class DatabaseConnectionResponse(BaseModel):
     last_error: Optional[str] = None
     created_by: Optional[str] = None
     tenant_id: Optional[str] = None
+    connection_string: Optional[str] = None  # Only included when requested by admin
     created_at: datetime
     updated_at: datetime
     

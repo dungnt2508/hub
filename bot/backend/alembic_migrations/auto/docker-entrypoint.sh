@@ -42,21 +42,61 @@ if [ -n "$DATABASE_URL" ]; then
         echo -e "${YELLOW}[Entrypoint] Warning: Failed to create default admin user (may already exist)${NC}"
     fi
 
-    # Create routing data
-    echo -e "${YELLOW}[Entrypoint] Creating routing data...${NC}"
-    if python -m backend.alembic_migrations.auto.seed_routing_data; then
-        echo -e "${GREEN}[Entrypoint] Create routing data completed!${NC}"
+    # # Create routing data
+    # echo -e "${YELLOW}[Entrypoint] Creating routing data...${NC}"
+    # if python -m backend.alembic_migrations.auto.seed_routing_data; then
+    #     echo -e "${GREEN}[Entrypoint] Create routing data completed!${NC}"
+    # else
+    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create routing data (may already exist)${NC}"
+    # fi
+
+    # # Create hr data
+    # echo -e "${YELLOW}[Entrypoint] Creating hr data...${NC}"
+    # if python -m backend.alembic_migrations.auto.seed_hr_data; then
+    #     echo -e "${GREEN}[Entrypoint] Create hr data completed!${NC}"
+    # else
+    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create hr data (may already exist)${NC}"
+    # fi
+
+    # Create routing dba data
+    echo -e "${YELLOW}[Entrypoint] Creating dba routing data...${NC}"
+    if python -m backend.alembic_migrations.auto.seed_dba_routing_data; then
+        echo -e "${GREEN}[Entrypoint] Create dba routing data completed!${NC}"
     else
-        echo -e "${YELLOW}[Entrypoint] Warning: Failed to create routing data (may already exist)${NC}"
+        echo -e "${YELLOW}[Entrypoint] Warning: Failed to create dba routing data (may already exist)${NC}"
     fi
 
-    # Create hr data
-    echo -e "${YELLOW}[Entrypoint] Creating hr data...${NC}"
-    if python -m backend.alembic_migrations.auto.seed_hr_data; then
-        echo -e "${GREEN}[Entrypoint] Create hr data completed!${NC}"
-    else
-        echo -e "${YELLOW}[Entrypoint] Warning: Failed to create hr data (may already exist)${NC}"
-    fi
+    # # Create meta routing data
+    # echo -e "${YELLOW}[Entrypoint] Creating meta routing data...${NC}"
+    # if python -m backend.alembic_migrations.auto.seed_meta_routing_data; then
+    #     echo -e "${GREEN}[Entrypoint] Create meta routing data completed!${NC}"
+    # else
+    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create meta routing data (may already exist)${NC}"
+    # fi
+
+    # # Create hr routing data
+    # echo -e "${YELLOW}[Entrypoint] Creating hr routing data...${NC}"
+    # if python -m backend.alembic_migrations.auto.seed_hr_routing_data; then
+    #     echo -e "${GREEN}[Entrypoint] Create hr routing data completed!${NC}"
+    # else
+    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create hr routing data (may already exist)${NC}"
+    # fi
+
+    # # Create catalog domain routing data
+    # echo -e "${YELLOW}[Entrypoint] Creating catalog domain routing data...${NC}"
+    # if python -m backend.alembic_migrations.auto.seed_catalog_routing_data; then
+    #     echo -e "${GREEN}[Entrypoint] Create catalog domain routing data completed!${NC}"
+    # else
+    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create catalog domain routing data (may already exist)${NC}"
+    # fi
+
+    #  # Create knowledge domain routing data
+    # echo -e "${YELLOW}[Entrypoint] Creating knowledge domain routing data...${NC}"
+    # if python -m backend.alembic_migrations.auto.seed_knowledge_routing_data; then
+    #     echo -e "${GREEN}[Entrypoint] Create knowledge domain routing data completed!${NC}"
+    # else
+    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create knowledge domain routing data (may already exist)${NC}"
+    # fi
 else
     echo -e "${YELLOW}[Entrypoint] DATABASE_URL not set, skipping migrations and seed data${NC}"
 fi

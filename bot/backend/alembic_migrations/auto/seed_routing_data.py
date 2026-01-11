@@ -90,6 +90,21 @@ async def create_admin_user():
         print("✅ Đã tạo admin user: admin@example.com / admin123")
 
 
+async def rule_exists(rule_name: str, list_func) -> bool:
+    """Check if rule already exists by name to prevent duplicates"""
+    try:
+        existing = await list_func(limit=1000, offset=0)
+        items = existing.get("items", [])
+        for item in items:
+            if hasattr(item, 'rule_name') and item.rule_name == rule_name:
+                logger.debug(f"Rule already exists: {rule_name}")
+                return True
+        return False
+    except Exception as e:
+        logger.warning(f"Error checking if rule exists: {e}")
+        return False
+
+
 async def create_pattern_rules(created_by: UUID):
     """Create sample pattern rules"""
     from backend.schemas.admin_config_types import PatternRuleCreate
@@ -178,8 +193,16 @@ async def create_pattern_rules(created_by: UUID):
     ]
     
     created_count = 0
+    skipped_count = 0
+    
     for rule_data in pattern_rules:
         try:
+            # Check if rule already exists to prevent duplicates
+            if await rule_exists(rule_data["rule_name"], admin_config_service.list_pattern_rules):
+                logger.info(f"Pattern rule already exists, skipping: {rule_data['rule_name']}")
+                skipped_count += 1
+                continue
+            
             rule = PatternRuleCreate(**rule_data)
             await admin_config_service.create_pattern_rule(
                 rule=rule,
@@ -190,7 +213,7 @@ async def create_pattern_rules(created_by: UUID):
         except Exception as e:
             logger.warning(f"Failed to create pattern rule {rule_data['rule_name']}: {e}")
     
-    print(f"✅ Đã tạo {created_count} pattern rules")
+    print(f"✅ Pattern Rules - Tạo: {created_count}, Bỏ qua: {skipped_count}")
 
 
 async def create_keyword_hints(created_by: UUID):
@@ -260,8 +283,16 @@ async def create_keyword_hints(created_by: UUID):
     ]
     
     created_count = 0
+    skipped_count = 0
+    
     for hint_data in keyword_hints:
         try:
+            # Check if hint already exists to prevent duplicates
+            if await rule_exists(hint_data["rule_name"], admin_config_service.list_keyword_hints):
+                logger.info(f"Keyword hint already exists, skipping: {hint_data['rule_name']}")
+                skipped_count += 1
+                continue
+            
             hint = KeywordHintCreate(**hint_data)
             await admin_config_service.create_keyword_hint(
                 hint=hint,
@@ -272,7 +303,7 @@ async def create_keyword_hints(created_by: UUID):
         except Exception as e:
             logger.warning(f"Failed to create keyword hint {hint_data['rule_name']}: {e}")
     
-    print(f"✅ Đã tạo {created_count} keyword hints")
+    print(f"✅ Keyword Hints - Tạo: {created_count}, Bỏ qua: {skipped_count}")
 
 
 async def create_routing_rules(created_by: UUID):
@@ -333,8 +364,16 @@ async def create_routing_rules(created_by: UUID):
     ]
     
     created_count = 0
+    skipped_count = 0
+    
     for rule_data in routing_rules:
         try:
+            # Check if rule already exists to prevent duplicates
+            if await rule_exists(rule_data["rule_name"], admin_config_service.list_routing_rules):
+                logger.info(f"Routing rule already exists, skipping: {rule_data['rule_name']}")
+                skipped_count += 1
+                continue
+            
             rule = RoutingRuleCreate(**rule_data)
             await admin_config_service.create_routing_rule(
                 rule=rule,
@@ -345,7 +384,7 @@ async def create_routing_rules(created_by: UUID):
         except Exception as e:
             logger.warning(f"Failed to create routing rule {rule_data['rule_name']}: {e}")
     
-    print(f"✅ Đã tạo {created_count} routing rules")
+    print(f"✅ Routing Rules - Tạo: {created_count}, Bỏ qua: {skipped_count}")
 
 
 async def create_prompt_templates(created_by: UUID):
@@ -440,8 +479,16 @@ async def create_prompt_templates(created_by: UUID):
     ]
     
     created_count = 0
+    skipped_count = 0
+    
     for template_data in prompt_templates:
         try:
+            # Check if template already exists to prevent duplicates
+            if await rule_exists(template_data["rule_name"], admin_config_service.list_prompt_templates):
+                logger.info(f"Prompt template already exists, skipping: {template_data['rule_name']}")
+                skipped_count += 1
+                continue
+            
             template = PromptTemplateCreate(**template_data)
             await admin_config_service.create_prompt_template(
                 template=template,
@@ -452,15 +499,51 @@ async def create_prompt_templates(created_by: UUID):
         except Exception as e:
             logger.warning(f"Failed to create prompt template {template_data['template_name']}: {e}")
     
-    print(f"✅ Đã tạo {created_count} prompt templates")
+    print(f"✅ Prompt Templates - Tạo: {created_count}, Bỏ qua: {skipped_count}")
 
 
 async def clean_admin_data():
-    """Xóa tất cả dữ liệu admin đã seed"""
+    """Xóa chỉ những dữ liệu admin đã seed (không xóa data khác)"""
     try:
         # Connect to database
         await database_client.connect()
         logger.info("Connected to database")
+        
+        # Define seeded rule names to identify which ones to delete
+        seeded_pattern_rules = {
+            "HR - Tra cứu số ngày phép",
+            "HR - Xin nghỉ phép",
+            "HR - Duyệt đơn nghỉ phép",
+            "HR - Tra cứu lương",
+            "Catalog - Tìm kiếm sản phẩm",
+            "Catalog - Xem giá sản phẩm",
+            "Chào hỏi",
+            "Cảm ơn",
+        }
+        
+        seeded_keyword_hints = {
+            "HR Domain - Từ khóa tiếng Việt",
+            "Catalog Domain - Từ khóa tiếng Việt",
+            "Knowledge Domain - Từ khóa tiếng Việt",
+        }
+        
+        seeded_routing_rules = {
+            "HR - Tra cứu ngày phép",
+            "HR - Tạo đơn nghỉ phép",
+            "HR - Duyệt đơn nghỉ phép",
+            "Catalog - Tìm kiếm sản phẩm",
+            "Catalog - Tra cứu giá",
+        }
+        
+        seeded_prompt_templates = {
+            "HR - Tra cứu ngày phép System Prompt",
+            "HR - Tạo đơn nghỉ phép System Prompt",
+            "HR - Duyệt đơn nghỉ phép System Prompt",
+            "Catalog - Tìm kiếm sản phẩm System Prompt",
+            "Catalog - Tra cứu giá System Prompt",
+            "Knowledge - Hỏi đáp System Prompt",
+            "Meta - Chào hỏi System Prompt",
+        }
         
         deleted_counts = {
             "pattern_rules": 0,
@@ -469,59 +552,59 @@ async def clean_admin_data():
             "prompt_templates": 0,
         }
         
-        # 1. Delete all pattern rules
+        # 1. Delete only seeded pattern rules
         try:
             pattern_rules = await admin_config_service.list_pattern_rules(limit=1000, offset=0)
             for rule in pattern_rules.get("items", []):
-                try:
-                    # Pydantic models - access attributes directly
-                    await admin_config_service.delete_pattern_rule(rule.id)
-                    deleted_counts["pattern_rules"] += 1
-                    logger.info(f"Deleted pattern rule: {rule.rule_name}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete pattern rule {rule.id}: {e}")
+                if hasattr(rule, 'rule_name') and rule.rule_name in seeded_pattern_rules:
+                    try:
+                        await admin_config_service.delete_pattern_rule(rule.id)
+                        deleted_counts["pattern_rules"] += 1
+                        logger.info(f"Deleted pattern rule: {rule.rule_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete pattern rule {rule.id}: {e}")
         except Exception as e:
             logger.warning(f"Error listing/deleting pattern rules: {e}")
         
-        # 2. Delete all keyword hints
+        # 2. Delete only seeded keyword hints
         try:
             keyword_hints = await admin_config_service.list_keyword_hints(limit=1000, offset=0)
             for hint in keyword_hints.get("items", []):
-                try:
-                    # Pydantic models - access attributes directly
-                    await admin_config_service.delete_keyword_hint(hint.id)
-                    deleted_counts["keyword_hints"] += 1
-                    logger.info(f"Deleted keyword hint: {hint.rule_name}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete keyword hint {hint.id}: {e}")
+                if hasattr(hint, 'rule_name') and hint.rule_name in seeded_keyword_hints:
+                    try:
+                        await admin_config_service.delete_keyword_hint(hint.id)
+                        deleted_counts["keyword_hints"] += 1
+                        logger.info(f"Deleted keyword hint: {hint.rule_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete keyword hint {hint.id}: {e}")
         except Exception as e:
             logger.warning(f"Error listing/deleting keyword hints: {e}")
         
-        # 3. Delete all routing rules
+        # 3. Delete only seeded routing rules
         try:
             routing_rules = await admin_config_service.list_routing_rules(limit=1000, offset=0)
             for rule in routing_rules.get("items", []):
-                try:
-                    # Pydantic models - access attributes directly
-                    await admin_config_service.delete_routing_rule(rule.id)
-                    deleted_counts["routing_rules"] += 1
-                    logger.info(f"Deleted routing rule: {rule.rule_name}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete routing rule {rule.id}: {e}")
+                if hasattr(rule, 'rule_name') and rule.rule_name in seeded_routing_rules:
+                    try:
+                        await admin_config_service.delete_routing_rule(rule.id)
+                        deleted_counts["routing_rules"] += 1
+                        logger.info(f"Deleted routing rule: {rule.rule_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete routing rule {rule.id}: {e}")
         except Exception as e:
             logger.warning(f"Error listing/deleting routing rules: {e}")
         
-        # 4. Delete all prompt templates
+        # 4. Delete only seeded prompt templates
         try:
             prompt_templates = await admin_config_service.list_prompt_templates(limit=1000, offset=0)
             for template in prompt_templates.get("items", []):
-                try:
-                    # Pydantic models - access attributes directly
-                    await admin_config_service.delete_prompt_template(template.id)
-                    deleted_counts["prompt_templates"] += 1
-                    logger.info(f"Deleted prompt template: {template.template_name}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete prompt template {template.id}: {e}")
+                if hasattr(template, 'rule_name') and template.rule_name in seeded_prompt_templates:
+                    try:
+                        await admin_config_service.delete_prompt_template(template.id)
+                        deleted_counts["prompt_templates"] += 1
+                        logger.info(f"Deleted prompt template: {template.rule_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete prompt template {template.id}: {e}")
         except Exception as e:
             logger.warning(f"Error listing/deleting prompt templates: {e}")
         

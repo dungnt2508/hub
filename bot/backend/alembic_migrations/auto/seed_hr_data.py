@@ -22,6 +22,13 @@ async def seed_hr_data():
         await db_client.connect()
         logger.info("Connected to database for seeding HR data")
         
+        stats = {
+            "employees_created": 0,
+            "employees_skipped": 0,
+            "leave_requests_created": 0,
+            "leave_requests_skipped": 0,
+        }
+        
         # Seed employees
         employees = [
             {
@@ -66,18 +73,22 @@ async def seed_hr_data():
         async with pool.acquire() as conn:
             for emp in employees:
                 try:
+                    # Check if employee already exists
+                    existing = await conn.fetchval(
+                        "SELECT user_id FROM employees WHERE user_id = $1",
+                        emp["user_id"]
+                    )
+                    
+                    if existing:
+                        logger.info(f"Employee already exists, skipping: {emp['name']} ({emp['user_id']})")
+                        stats["employees_skipped"] += 1
+                        continue
+                    
                     await conn.execute(
                         """
                         INSERT INTO employees 
                         (employee_id, user_id, name, email, department, leave_balance, role, created_at, updated_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-                        ON CONFLICT (user_id) DO UPDATE
-                        SET 
-                            name = EXCLUDED.name,
-                            department = EXCLUDED.department,
-                            leave_balance = EXCLUDED.leave_balance,
-                            role = EXCLUDED.role,
-                            updated_at = NOW()
                         """,
                         emp["employee_id"],
                         emp["user_id"],
@@ -87,7 +98,8 @@ async def seed_hr_data():
                         emp["leave_balance"],
                         emp["role"]
                     )
-                    logger.info(f"Seeded employee: {emp['name']} ({emp['user_id']})")
+                    stats["employees_created"] += 1
+                    logger.info(f"Created employee: {emp['name']} ({emp['user_id']})")
                 except Exception as e:
                     logger.warning(f"Failed to seed employee {emp['user_id']}: {e}")
         
@@ -125,16 +137,22 @@ async def seed_hr_data():
         async with pool.acquire() as conn:
             for lr in leave_requests:
                 try:
+                    # Check if leave request already exists
+                    existing = await conn.fetchval(
+                        "SELECT leave_request_id FROM leave_requests WHERE leave_request_id = $1",
+                        lr["leave_request_id"]
+                    )
+                    
+                    if existing:
+                        logger.info(f"Leave request already exists, skipping: {lr['reason']} ({lr['status']})")
+                        stats["leave_requests_skipped"] += 1
+                        continue
+                    
                     await conn.execute(
                         """
                         INSERT INTO leave_requests 
                         (leave_request_id, employee_id, start_date, end_date, reason, status, approved_by, created_at, updated_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-                        ON CONFLICT (leave_request_id) DO UPDATE
-                        SET 
-                            status = EXCLUDED.status,
-                            approved_by = EXCLUDED.approved_by,
-                            updated_at = NOW()
                         """,
                         lr["leave_request_id"],
                         lr["employee_id"],
@@ -144,11 +162,16 @@ async def seed_hr_data():
                         lr["status"],
                         lr["approved_by"]
                     )
-                    logger.info(f"Seeded leave request: {lr['reason']} ({lr['status']})")
+                    stats["leave_requests_created"] += 1
+                    logger.info(f"Created leave request: {lr['reason']} ({lr['status']})")
                 except Exception as e:
                     logger.warning(f"Failed to seed leave request: {e}")
         
         logger.info("HR data seeding completed successfully")
+        print(f"\n✅ HR Data Seeding Completed!")
+        print(f"\n📝 Results:")
+        print(f"   Employees - Tạo: {stats['employees_created']}, Bỏ qua: {stats['employees_skipped']}")
+        print(f"   Leave Requests - Tạo: {stats['leave_requests_created']}, Bỏ qua: {stats['leave_requests_skipped']}")
         
     except Exception as e:
         logger.error(f"Failed to seed HR data: {e}", exc_info=True)

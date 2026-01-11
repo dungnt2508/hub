@@ -11,6 +11,9 @@ import os
 from .api_handler import APIHandler
 from .multi_tenant_bot_api import MultiTenantBotAPI
 from .admin_api import router as admin_router
+from .domain_sandbox_api import sandbox_router
+from .routers.dba_routes import router as dba_router
+from ..domain.sandbox import initialize_registry
 from .handlers.embed_init_handler import setup_test_data
 from ..shared.logger import logger
 from ..shared.config import config
@@ -55,6 +58,12 @@ multi_tenant_api = MultiTenantBotAPI()
 # Register admin API router
 app.include_router(admin_router)
 
+# Register sandbox API router
+app.include_router(sandbox_router)
+
+# Register DBA API router
+app.include_router(dba_router)
+
 # Global AI provider instance (will be closed on shutdown)
 _ai_provider: AIProvider = None
 
@@ -80,6 +89,17 @@ async def startup_event():
         # Connect Database
         await database_client.connect()
         logger.info("Infrastructure initialized: Database connected")
+        
+        # Initialize DBA Sandbox Connection Registry (load from database)
+        try:
+            from ..domain.sandbox import initialize_registry
+            success = await initialize_registry()
+            if success:
+                logger.info("DBA Sandbox: Connection Registry initialized from database")
+            else:
+                logger.info("DBA Sandbox: Connection Registry initialized (no connections found)")
+        except Exception as e:
+            logger.warning(f"Failed to initialize DBA Sandbox registry: {e}", exc_info=True)
         
         # Setup test data for multi-tenant (development only)
         env = os.getenv("ENVIRONMENT", "development").lower()

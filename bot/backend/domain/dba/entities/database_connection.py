@@ -34,7 +34,7 @@ class DatabaseConnection(BaseModel):
     connection_id: Optional[str] = Field(None, description="Connection ID (UUID)")
     name: str = Field(..., description="Connection name (e.g., 'SQL Server Production')")
     db_type: DatabaseType = Field(..., description="Database type")
-    connection_string: str = Field(..., description="Encrypted connection string")
+    connection_string: Optional[str] = Field(None, description="Encrypted connection string (excluded in responses by default)")
     
     # Metadata
     description: Optional[str] = Field(None, description="Connection description")

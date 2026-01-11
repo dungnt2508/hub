@@ -28,6 +28,7 @@ from .steps import (
     EmbeddingClassifierStep,
     LLMClassifierStep,
 )
+from .policies import get_threshold_policy, RoutingSource
 
 
 class RouterOrchestrator:
@@ -55,6 +56,7 @@ class RouterOrchestrator:
         self.embedding_step = EmbeddingClassifierStep()
         self.llm_step = LLMClassifierStep()
         self.tracer = get_tracer("router.orchestrator")
+        self.threshold_policy = get_threshold_policy()
     
     async def route(self, request: RouterRequest) -> RouterResponse:
         """
@@ -132,22 +134,28 @@ class RouterOrchestrator:
                 
                 # STEP 4: Embedding classifier (runs after we have boost from Keyword)
                 embedding_result = await self._step_4_embedding(normalized, boost, router_trace, span)
-                if embedding_result.get("classified") and embedding_result.get("confidence", 0) >= config.EMBEDDING_THRESHOLD:
-                    span.set_attribute("router.decision", "EMBEDDING")
-                    span.set_attribute("router.domain", embedding_result.get("domain", "unknown"))
-                    span.set_attribute("router.intent", embedding_result.get("intent", "unknown"))
-                    span.set_attribute("router.confidence", embedding_result.get("confidence", 0))
-                    return self._build_routed_response(trace_id, embedding_result, router_trace)
+                if embedding_result.get("classified"):
+                    confidence = embedding_result.get("confidence", 0)
+                    # Use ThresholdPolicy to decide
+                    if self.threshold_policy.should_route(RoutingSource.EMBEDDING, confidence):
+                        span.set_attribute("router.decision", "EMBEDDING")
+                        span.set_attribute("router.domain", embedding_result.get("domain", "unknown"))
+                        span.set_attribute("router.intent", embedding_result.get("intent", "unknown"))
+                        span.set_attribute("router.confidence", confidence)
+                        return self._build_routed_response(trace_id, embedding_result, router_trace)
                 
                 # STEP 5: LLM classifier (fallback)
                 if config.ENABLE_LLM_FALLBACK:
                     llm_result = await self._step_5_llm(normalized, session_state, router_trace, span)
-                    if llm_result.get("classified") and llm_result.get("confidence", 0) >= config.LLM_THRESHOLD:
-                        span.set_attribute("router.decision", "LLM")
-                        span.set_attribute("router.domain", llm_result.get("domain", "unknown"))
-                        span.set_attribute("router.intent", llm_result.get("intent", "unknown"))
-                        span.set_attribute("router.confidence", llm_result.get("confidence", 0))
-                        return self._build_routed_response(trace_id, llm_result, router_trace)
+                    if llm_result.get("classified"):
+                        confidence = llm_result.get("confidence", 0)
+                        # Use ThresholdPolicy to decide
+                        if self.threshold_policy.should_route(RoutingSource.LLM, confidence):
+                            span.set_attribute("router.decision", "LLM")
+                            span.set_attribute("router.domain", llm_result.get("domain", "unknown"))
+                            span.set_attribute("router.intent", llm_result.get("intent", "unknown"))
+                            span.set_attribute("router.confidence", confidence)
+                            return self._build_routed_response(trace_id, llm_result, router_trace)
                 
                 # STEP 6: UNKNOWN
                 span.set_attribute("router.decision", "UNKNOWN")

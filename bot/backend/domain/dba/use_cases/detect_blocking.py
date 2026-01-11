@@ -1,14 +1,15 @@
 """
 Detect Blocking Use Case
 """
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from ....schemas import DomainRequest, DomainResponse, DomainResult
 from ....shared.exceptions import InvalidInputError, DomainError
 from ....shared.logger import logger
 from .base_use_case import BaseUseCase
-from ..ports.mcp_client import IMCPDBClient, DatabaseType
+from ...dba.ports.mcp_client import IMCPDBClient, DatabaseType
 from ..entities.blocking_session import BlockingSession
+from ..config import DBAConfig
 
 
 class DetectBlockingUseCase(BaseUseCase):
@@ -21,11 +22,12 @@ class DetectBlockingUseCase(BaseUseCase):
         Args:
             mcp_client: MCP DB client (required, injected)
         """
+        super().__init__()
         if mcp_client is None:
             raise ValueError("MCP client is required for DetectBlockingUseCase")
         self.mcp_client = mcp_client
     
-    async def execute(self, request: DomainRequest) -> DomainResponse:
+    async def _execute_impl(self, request: DomainRequest, db_type: DatabaseType) -> Dict[str, Any]:
         """
         Execute detect blocking.
         
@@ -43,28 +45,10 @@ class DetectBlockingUseCase(BaseUseCase):
         """
         try:
             # Extract slots
-            db_type_str = request.slots.get("db_type", "postgresql")
             connection_string = request.slots.get("connection_string")
             connection_name = request.slots.get("connection_name")
             connection_id = request.slots.get("connection_id")
             tenant_id = request.user_context.get("tenant_id")
-            
-            # Validate db_type
-            try:
-                db_type = DatabaseType(db_type_str.lower())
-            except ValueError:
-                raise InvalidInputError(
-                    f"Unsupported database type: {db_type_str}. "
-                    f"Supported types: {[dt.value for dt in DatabaseType]}"
-                )
-            
-            logger.info(
-                f"Detecting blocking in {db_type.value}",
-                extra={
-                    "trace_id": request.trace_id,
-                    "db_type": db_type.value,
-                }
-            )
             
             # Detect blocking via MCP
             blocking_data = await self.mcp_client.detect_blocking(
@@ -80,10 +64,10 @@ class DetectBlockingUseCase(BaseUseCase):
                 BlockingSession.from_dict(block) for block in blocking_data
             ]
             
-            # Analyze critical blocking
+            # Analyze critical blocking using centralized threshold
             critical_blocking = [
                 block for block in blocking_sessions
-                if block.is_critical(threshold_ms=5000.0)
+                if block.is_critical(threshold_ms=float(DBAConfig.BLOCKING_CRITICAL_THRESHOLD_MS))
             ]
             
             blocking_count = len(blocking_sessions)
@@ -96,30 +80,18 @@ class DetectBlockingUseCase(BaseUseCase):
                 else f"Không phát hiện blocking session trong {db_type.value}"
             )
             
-            logger.info(
-                f"Blocking detection completed",
-                extra={
-                    "trace_id": request.trace_id,
-                    "db_type": db_type.value,
-                    "blocking_count": blocking_count,
-                    "critical_count": critical_count,
-                }
-            )
-            
-            return DomainResponse(
-                status=DomainResult.SUCCESS,
-                data={
+            return {
+                "data": {
                     "blocking_sessions": [block.to_dict() for block in blocking_sessions],
                     "critical_blocking": [block.to_dict() for block in critical_blocking],
                     "blocking_count": blocking_count,
                     "critical_count": critical_count,
+                    "critical_threshold_ms": DBAConfig.BLOCKING_CRITICAL_THRESHOLD_MS,
                     "db_type": db_type.value,
                 },
-                message=message,
-            )
+                "message": message,
+            }
             
-        except InvalidInputError:
-            raise
         except Exception as e:
             logger.error(
                 f"Error detecting blocking: {e}",

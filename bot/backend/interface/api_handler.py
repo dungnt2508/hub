@@ -4,13 +4,16 @@ API Handler - Interface Layer Entry Point
 This is where HTTP/WebSocket requests enter the system.
 Applies personalization and formats responses.
 """
+import asyncio
 from typing import Dict, Any, Optional
 
 from ..router import RouterOrchestrator
 from ..schemas import RouterRequest, RouterResponse
 from ..personalization import PersonalizationService, ResponseFormatter
 from ..shared.logger import logger
-from ..shared.exceptions import RouterError, InvalidInputError, AuthenticationError
+from ..shared.exceptions import RouterError, InvalidInputError, AuthenticationError, DomainError
+from ..shared.request_metadata import RequestMetadata
+from .domain_dispatcher import domain_dispatcher
 
 
 class APIHandler:
@@ -59,14 +62,37 @@ class APIHandler:
             raw_message: User message
             user_id: User ID
             session_id: Optional session ID
-            metadata: Optional request metadata
+            metadata: Optional request metadata (will be validated)
             
         Returns:
             Formatted response dict with personalization
         """
         try:
-            # Load user preferences
-            preferences = await self.personalization_service.get_preferences(user_id)
+            # Validate metadata on entry
+            if metadata is None:
+                metadata = {}
+            
+            try:
+                # Ensure metadata has required fields
+                if not metadata.get("tenant_id"):
+                    metadata["tenant_id"] = ""
+                if not metadata.get("user_id"):
+                    metadata["user_id"] = user_id
+                
+                # Validate metadata
+                req_metadata = RequestMetadata.from_dict(metadata)
+                metadata = req_metadata.to_dict()
+            except InvalidInputError as e:
+                logger.warning(
+                    f"Invalid request metadata: {e}",
+                    extra={"user_id": user_id}
+                )
+                # Return early with error response
+                return {
+                    "error": "INVALID_METADATA",
+                    "message": str(e),
+                    "avatar": {"emoji": "🤖", "url": None, "name": "Bot"},
+                }
             
             # Create router request
             request = RouterRequest(
@@ -74,20 +100,63 @@ class APIHandler:
                 user_id=user_id,
                 session_id=session_id,
                 metadata=metadata,
-                preferences_context={
-                    "tone": preferences.tone.value,
-                    "style": preferences.style.value,
-                    "language": preferences.language,
-                }
+                preferences_context={}  # Will be populated after routing
             )
             
-            # Route request
+            # Route request (this is the critical path - should be fast)
             router_response = await self.router.route(request)
+            
+            # Dispatch to domain handler if routed
+            try:
+                domain_result = await domain_dispatcher.dispatch(
+                    router_response,
+                    user_id,
+                    metadata
+                )
+            except (InvalidInputError, DomainError) as e:
+                logger.warning(
+                    f"Domain dispatch failed: {e}",
+                    extra={
+                        "user_id": user_id,
+                        "trace_id": router_response.trace_id,
+                    }
+                )
+                # Fallback to router response
+                domain_result = {
+                    "message": str(e),
+                    "status": "ERROR",
+                    "trace_id": router_response.trace_id,
+                    "domain": router_response.domain,
+                    "intent": router_response.intent,
+                }
+            
+            # Lazy load preferences (after routing, less critical)
+            try:
+                preferences = await asyncio.wait_for(
+                    self.personalization_service.get_preferences(user_id),
+                    timeout=1.0  # Fail fast
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load preferences: {e}",
+                    extra={"user_id": user_id}
+                )
+                # Use defaults
+                from ..personalization import Preferences
+                preferences = Preferences()  # Default preferences
+            
+            # Add preferences context to response formatting
+            preferences_context = {
+                "tone": preferences.tone.value if preferences else "neutral",
+                "style": preferences.style.value if preferences else "informative",
+                "language": preferences.language if preferences else "vi",
+            }
             
             # Format response with personalization
             formatted_response = await self.response_formatter.format_router_response(
-                router_response,
-                user_id
+                domain_result if isinstance(domain_result, RouterResponse) else router_response,
+                user_id,
+                preferences_context=preferences_context
             )
             
             logger.info(
@@ -99,7 +168,10 @@ class APIHandler:
                 }
             )
             
-            return formatted_response
+            return {
+                **formatted_response,
+                **(domain_result if isinstance(domain_result, dict) and domain_result.get("data") else {})
+            }
             
         except InvalidInputError as e:
             logger.warning(

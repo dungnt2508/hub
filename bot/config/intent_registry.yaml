@@ -61,3 +61,107 @@ intents:
     source_allowed: [PATTERN, EMBEDDING, LLM]
     description: "Get information about specific product"
 
+  # DBA Domain - OPERATION Intents
+  - intent: analyze_slow_query
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_string, connection_name, connection_id, limit, min_duration_ms]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Analyze slow running queries"
+    
+  - intent: check_index_health
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id, schema]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Check database index health and fragmentation"
+    
+  - intent: detect_blocking
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Detect blocking sessions and locks"
+    
+  - intent: analyze_wait_stats
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id, limit]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Analyze database wait statistics"
+    
+  - intent: analyze_query_regression
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id, query_hash, threshold_percent]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Detect query performance regression"
+    
+  - intent: detect_deadlock_pattern
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Detect deadlock patterns"
+    
+  - intent: analyze_io_pressure
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Analyze I/O pressure and workload"
+    
+  - intent: capacity_forecast
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id, forecast_days]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Forecast database capacity needs"
+    
+  - intent: validate_custom_sql
+    domain: dba
+    intent_type: OPERATION
+    required_slots: [sql_query]
+    optional_slots: [db_type]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Validate SQL query syntax and performance"
+    
+  - intent: compare_sp_blitz_vs_custom
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [db_type, connection_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Compare sp_Blitz results with custom analysis"
+    
+  - intent: incident_triage
+    domain: dba
+    intent_type: OPERATION
+    required_slots: [incident_description]
+    optional_slots: [db_type, connection_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Triage and analyze database incidents"
+    
+  - intent: store_query_metrics
+    domain: dba
+    intent_type: OPERATION
+    required_slots: [connection_id, database_type, query_hash, mean_time_ms, max_time_ms, total_calls]
+    optional_slots: [rows_examined, rows_returned, metadata]
+    source_allowed: [LLM]
+    description: "Store query performance metrics for trending"
+    
+  - intent: get_active_alerts
+    domain: dba
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [connection_id, limit]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Get active database alerts"

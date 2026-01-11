@@ -1150,19 +1150,28 @@ async def create_dba_connection(
 @router.get("/dba/connections/{connection_id}", response_model=DatabaseConnectionResponse)
 async def get_dba_connection(
     connection_id: str,
+    include_secret: bool = False,
     current_user: dict = Depends(require_any_role),
 ):
-    """Get database connection by ID"""
+    """Get database connection by ID
+    
+    Query Parameters:
+    - include_secret: If true, include encrypted connection_string (admin only)
+    """
     try:
+        # Only admin/operator can view connection string
+        user_role = current_user.get("role", "").lower()
+        can_view_secret = include_secret and user_role in ["admin", "operator"]
+        
         connection = await connection_registry.repository.get_connection(
             connection_id,
-            include_encrypted=False
+            include_encrypted=can_view_secret
         )
         
         if not connection:
             raise HTTPException(status_code=404, detail="Connection not found")
         
-        return DatabaseConnectionResponse(**connection.to_dict(include_connection_string=False))
+        return DatabaseConnectionResponse(**connection.to_dict(include_connection_string=can_view_secret))
     except HTTPException:
         raise
     except Exception as e:
@@ -1174,9 +1183,14 @@ async def get_dba_connection(
 async def update_dba_connection(
     connection_id: str,
     connection: DatabaseConnectionUpdate,
+    include_secret: bool = False,
     current_user: dict = Depends(require_admin_or_operator),
 ):
-    """Update database connection"""
+    """Update database connection
+    
+    Query Parameters:
+    - include_secret: If true, include encrypted connection_string in response
+    """
     try:
         updates = connection.dict(exclude_none=True)
         result = await connection_registry.update_connection(connection_id, updates)
@@ -1184,13 +1198,44 @@ async def update_dba_connection(
         if not result:
             raise HTTPException(status_code=404, detail="Connection not found")
         
-        return DatabaseConnectionResponse(**result.to_dict(include_connection_string=False))
+        return DatabaseConnectionResponse(**result.to_dict(include_connection_string=include_secret))
     except HTTPException:
         raise
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating DBA connection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dba/connections/{connection_id}/secret", response_model=dict)
+async def get_dba_connection_secret(
+    connection_id: str,
+    current_user: dict = Depends(require_admin_or_operator),
+):
+    """Get encrypted connection string for editing (admin/operator only)
+    
+    Returns the encrypted connection string that can be displayed in UI
+    and toggled visible/hidden like a password field.
+    """
+    try:
+        connection = await connection_registry.repository.get_connection(
+            connection_id,
+            include_encrypted=True
+        )
+        
+        if not connection:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        
+        return {
+            "connection_id": connection.connection_id,
+            "connection_string": connection.connection_string,  # Encrypted string for display
+            "is_encrypted": True
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting DBA connection secret: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

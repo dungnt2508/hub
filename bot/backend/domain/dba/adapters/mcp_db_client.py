@@ -210,25 +210,96 @@ class MCPDBClient(IMCPDBClient):
     
     async def execute_query(
         self,
-        db_type: DatabaseType,
-        query: str,
+        query: Optional[str] = None,
+        connection_id: Optional[str] = None,
         connection_string: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None
+        connection_name: Optional[str] = None,
+        db_type: Optional[str] = None,
+        timeout_seconds: int = 300,
+        params: Optional[Dict[str, Any]] = None,
+        tenant_id: Optional[str] = None,
+        # Support old signature for backward compatibility
+        **kwargs
     ) -> List[Dict[str, Any]]:
-        """Execute query via MCP server"""
+        """
+        Execute query via MCP server.
+        
+        Supports both new and old signatures for backward compatibility:
+        - New: execute_query(query=..., connection_id=..., db_type=...)
+        - Old: execute_query(db_type=..., query=..., connection_string=...)
+        """
+        # Handle old signature where db_type is passed first positionally or as kwarg
+        if query is None and 'db_type' in kwargs:
+            # Old-style call: execute_query(db_type=..., query=..., connection_string=...)
+            db_type_kwarg = db_type or kwargs.get('db_type')
+            if isinstance(db_type_kwarg, DatabaseType):
+                db_type = db_type_kwarg.value
+            elif isinstance(db_type_kwarg, str):
+                db_type = db_type_kwarg
+            
+            # Get query from kwargs if not provided
+            query = kwargs.get('query')
+            connection_string = connection_string or kwargs.get('connection_string')
+        
+        if not query:
+            raise ValueError("query parameter is required")
+        
         logger.debug(
-            f"Executing query on {db_type.value}",
-            extra={"db_type": db_type.value, "query_length": len(query)}
+            f"Executing query",
+            extra={
+                "query_length": len(query),
+                "timeout_seconds": timeout_seconds,
+                "has_connection_id": bool(connection_id),
+                "has_connection_string": bool(connection_string),
+                "db_type": db_type
+            }
         )
         
+        # Resolve connection string if not provided but connection_id is
+        resolved_conn_string = connection_string
+        if not resolved_conn_string and (connection_id or connection_name):
+            try:
+                resolved_conn_string = await self._resolve_connection_string(
+                    connection_string=connection_string,
+                    connection_name=connection_name,
+                    connection_id=connection_id,
+                    tenant_id=tenant_id
+                )
+                if resolved_conn_string:
+                    logger.debug(
+                        f"Resolved connection string",
+                        extra={"connection_id": connection_id, "connection_name": connection_name}
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to resolve connection string: {e}",
+                    extra={"connection_id": connection_id, "connection_name": connection_name}
+                )
+        
+        # Build payload
         payload = {
-            "db_type": db_type.value,
             "query": query,
-            "params": params or {}
+            "params": params or {},
+            "timeout_seconds": timeout_seconds,
         }
         
-        if connection_string:
+        # Add connection info - prefer resolved connection string
+        if resolved_conn_string:
+            payload["connection_string"] = resolved_conn_string
+        elif connection_string:
             payload["connection_string"] = connection_string
+        elif connection_id:
+            payload["connection_id"] = str(connection_id)
+        elif connection_name:
+            payload["connection_name"] = connection_name
+        
+        # Add db_type if provided
+        if db_type:
+            # Handle DatabaseType enum
+            if hasattr(db_type, 'value'):
+                payload["db_type"] = db_type.value
+            else:
+                payload["db_type"] = str(db_type)
         
         result = await self._call_mcp_server("POST", "/execute", payload)
         return result if isinstance(result, list) else [result]

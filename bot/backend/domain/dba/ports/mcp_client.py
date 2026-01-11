@@ -22,19 +22,25 @@ class IMCPDBClient(ABC):
     @abstractmethod
     async def execute_query(
         self,
-        db_type: DatabaseType,
         query: str,
+        connection_id: Optional[str] = None,
         connection_string: Optional[str] = None,
+        connection_name: Optional[str] = None,
+        db_type: Optional[str] = None,
+        timeout_seconds: int = 300,
         params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
         Execute query on specified database.
         
         Args:
-            db_type: Database type
             query: SQL query to execute
+            connection_id: Connection ID from registry (optional)
             connection_string: Database connection string (optional, may use default)
-            params: Query parameters
+            connection_name: Connection name from registry (optional)
+            db_type: Database type (optional, inferred from connection)
+            timeout_seconds: Query timeout in seconds (default: 300)
+            params: Query parameters (optional)
             
         Returns:
             List of result rows as dictionaries

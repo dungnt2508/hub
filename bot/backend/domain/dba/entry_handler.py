@@ -12,6 +12,14 @@ from .use_cases import (
     AnalyzeSlowQueryUseCase,
     CheckIndexHealthUseCase,
     DetectBlockingUseCase,
+    AnalyzeWaitStatsUseCase,
+    AnalyzeQueryRegressionUseCase,
+    DetectDeadlockPatternUseCase,
+    AnalyzeIOPressureUseCase,
+    CapacityForecastUseCase,
+    ValidateCustomSQLUseCase,
+    CompareSPBlitzVsCustomUseCase,
+    IncidentTriageUseCase,
 )
 
 
@@ -41,15 +49,14 @@ class DBAEntryHandler:
             "analyze_slow_query": AnalyzeSlowQueryUseCase(mcp_client),
             "check_index_health": CheckIndexHealthUseCase(mcp_client),
             "detect_blocking": DetectBlockingUseCase(mcp_client),
-            # TODO: Add remaining use cases in Phase 2
-            # "analyze_query_regression": AnalyzeQueryRegressionUseCase(mcp_client),
-            # "detect_deadlock_pattern": DetectDeadlockPatternUseCase(mcp_client),
-            # "analyze_wait_stats": AnalyzeWaitStatsUseCase(mcp_client),
-            # "analyze_io_pressure": AnalyzeIOPressureUseCase(mcp_client),
-            # "capacity_forecast": CapacityForecastUseCase(mcp_client),
-            # "validate_custom_sql": ValidateCustomSQLUseCase(mcp_client),
-            # "compare_sp_blitz_vs_custom": CompareSPBlitzVsCustomUseCase(mcp_client),
-            # "incident_triage": IncidentTriageUseCase(mcp_client),
+            "analyze_wait_stats": AnalyzeWaitStatsUseCase(mcp_client),
+            "analyze_query_regression": AnalyzeQueryRegressionUseCase(mcp_client),
+            "detect_deadlock_pattern": DetectDeadlockPatternUseCase(mcp_client),
+            "analyze_io_pressure": AnalyzeIOPressureUseCase(mcp_client),
+            "capacity_forecast": CapacityForecastUseCase(mcp_client),
+            "validate_custom_sql": ValidateCustomSQLUseCase(mcp_client),
+            "compare_sp_blitz_vs_custom": CompareSPBlitzVsCustomUseCase(mcp_client),
+            "incident_triage": IncidentTriageUseCase(mcp_client),
         }
     
     async def handle(self, request: DomainRequest) -> DomainResponse:

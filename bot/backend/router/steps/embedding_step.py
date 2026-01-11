@@ -36,12 +36,15 @@ class EmbeddingClassifierStep:
         """
         Classify using embedding similarity.
         
+        NOTE: This step returns raw confidence scores.
+        Threshold checking is done by orchestrator only (see ThresholdPolicy).
+        
         Args:
             message: Normalized message
             boost: Keyword boost scores
             
         Returns:
-            Dict with classification result
+            Dict with classification result (contains raw confidence, not decision)
         """
         if not config.ENABLE_EMBEDDING:
             return {"classified": False, "reason": "embedding_disabled"}
@@ -97,16 +100,15 @@ class EmbeddingClassifierStep:
                 )
                 raise EmbeddingError(f"Similarity calculation failed: {e}") from e
             
-            if not best or best.score < self.threshold:
-                # This is not an error, just low confidence
+            if not best:
+                # No match found (shouldn't happen, but handle gracefully)
                 return {
                     "classified": False,
-                    "reason": "score_below_threshold",
-                    "score": best.score if best else None,
+                    "reason": "no_match",
                 }
             
             logger.info(
-                "Embedding classification successful",
+                "Embedding classification computed",
                 extra={
                     "intent": best.intent,
                     "domain": best.domain,
@@ -114,11 +116,12 @@ class EmbeddingClassifierStep:
                 }
             )
             
+            # Return raw score - orchestrator will decide based on ThresholdPolicy
             return {
                 "classified": True,
                 "intent": best.intent,
                 "domain": best.domain,
-                "confidence": best.score,
+                "confidence": best.score,  # RAW score
                 "source": "EMBEDDING",
             }
             

@@ -4,6 +4,7 @@ Use Case Registry - Discover and register available use cases
 from typing import Dict, List, Any
 from .hr.entry_handler import HREntryHandler
 from .catalog.entry_handler import CatalogEntryHandler
+from .dba.entry_handler import DBAEntryHandler
 from ..shared.logger import logger
 
 
@@ -74,6 +75,26 @@ class UseCaseRegistry:
                 "intent_type": "KNOWLEDGE",
             }
             
+            # DBA Domain
+            dba_handler = DBAEntryHandler()
+            dba_intents = list(dba_handler.use_cases.keys())
+            
+            self._domains["dba"] = {
+                "name": "dba",
+                "display_name": "Quản trị cơ sở dữ liệu",
+                "description": "Phân tích hiệu năng, tối ưu, giám sát cơ sở dữ liệu",
+                "intents": [
+                    {
+                        "intent": intent,
+                        "display_name": self._format_intent_name(intent),
+                        "description": self._get_intent_description("dba", intent),
+                        "intent_type": "OPERATION",
+                    }
+                    for intent in dba_intents
+                ],
+                "intent_type": "OPERATION",
+            }
+            
             # Knowledge Domain
             self._domains["knowledge"] = {
                 "name": "knowledge",
@@ -135,6 +156,13 @@ class UseCaseRegistry:
             "catalog": {
                 "search_products": "Tìm kiếm sản phẩm",
                 "query_price": "Tra cứu giá sản phẩm",
+            },
+            "dba": {
+                "validate_custom_sql": "Kiểm tra SQL queries",
+                "compare_sp_blitz_vs_custom": "So sánh sp_Blitz vs Custom",
+                "incident_triage": "Phân loại và phân tích incidents",
+                "store_query_metrics": "Lưu trữ metrics query",
+                "get_active_alerts": "Lấy danh sách alerts đang hoạt động",
             },
             "knowledge": {
                 "ask_question": "Hỏi đáp kiến thức",

@@ -4,7 +4,7 @@ Database Connection Registry Service
 from typing import Optional, List, Tuple, Dict, Any
 from ..ports.connection_repository import IConnectionRepository
 from ..adapters.connection_repository import PostgreSQLConnectionRepository
-from ..entities.database_connection import DatabaseConnection
+from ..entities.database_connection import DatabaseConnection, DatabaseType
 from ....shared.logger import logger
 
 
@@ -96,9 +96,12 @@ class ConnectionRegistry:
         # Encrypt connection string
         encrypted_string = DatabaseConnection.encrypt_connection_string(connection_string)
         
+        # Convert db_type string to enum
+        db_type_enum = DatabaseType(db_type.lower()) if isinstance(db_type, str) else db_type
+        
         connection = DatabaseConnection(
             name=name,
-            db_type=db_type,
+            db_type=db_type_enum,
             connection_string=encrypted_string,
             description=description,
             environment=environment,
@@ -120,6 +123,10 @@ class ConnectionRegistry:
             updates["connection_string"] = DatabaseConnection.encrypt_connection_string(
                 updates["connection_string"]
             )
+        
+        # If db_type is provided as string, convert to enum
+        if "db_type" in updates and isinstance(updates["db_type"], str):
+            updates["db_type"] = DatabaseType(updates["db_type"].lower())
         
         return await self.repository.update_connection(connection_id, updates)
     

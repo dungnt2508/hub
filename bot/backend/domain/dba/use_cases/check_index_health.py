@@ -1,13 +1,13 @@
 """
 Check Index Health Use Case
 """
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from ....schemas import DomainRequest, DomainResponse, DomainResult
 from ....shared.exceptions import InvalidInputError, DomainError
 from ....shared.logger import logger
 from .base_use_case import BaseUseCase
-from ..ports.mcp_client import IMCPDBClient, DatabaseType
+from ...dba.ports.mcp_client import IMCPDBClient, DatabaseType
 from ..entities.index_health import IndexHealth
 
 
@@ -21,53 +21,34 @@ class CheckIndexHealthUseCase(BaseUseCase):
         Args:
             mcp_client: MCP DB client (required, injected)
         """
+        super().__init__()
         if mcp_client is None:
             raise ValueError("MCP client is required for CheckIndexHealthUseCase")
         self.mcp_client = mcp_client
     
-    async def execute(self, request: DomainRequest) -> DomainResponse:
+    async def _execute_impl(self, request: DomainRequest, db_type: DatabaseType) -> Dict[str, Any]:
         """
-        Execute check index health.
+        Execute check index health (implementation).
         
         Args:
             request: Domain request with slots:
-                - db_type: Database type (postgresql, mysql, sqlserver, etc.)
                 - connection_string: Database connection string (optional)
                 - schema: Schema name (optional)
+            db_type: Validated database type
                 
         Returns:
-            Domain response with index health analysis
+            Dict with data and message
             
         Raises:
-            InvalidInputError: If db_type is invalid
             DomainError: If check fails
         """
         try:
             # Extract slots
-            db_type_str = request.slots.get("db_type", "postgresql")
             connection_string = request.slots.get("connection_string")
             connection_name = request.slots.get("connection_name")
             connection_id = request.slots.get("connection_id")
             tenant_id = request.user_context.get("tenant_id")
             schema = request.slots.get("schema")
-            
-            # Validate db_type
-            try:
-                db_type = DatabaseType(db_type_str.lower())
-            except ValueError:
-                raise InvalidInputError(
-                    f"Unsupported database type: {db_type_str}. "
-                    f"Supported types: {[dt.value for dt in DatabaseType]}"
-                )
-            
-            logger.info(
-                f"Checking index health for {db_type.value}",
-                extra={
-                    "trace_id": request.trace_id,
-                    "db_type": db_type.value,
-                    "schema": schema,
-                }
-            )
             
             # Get index stats via MCP
             index_stats_data = await self.mcp_client.get_index_stats(
@@ -95,30 +76,17 @@ class CheckIndexHealthUseCase(BaseUseCase):
                 else f"Tất cả {total_indexes} index đều khỏe mạnh trong {db_type.value}"
             )
             
-            logger.info(
-                f"Index health check completed",
-                extra={
-                    "trace_id": request.trace_id,
-                    "db_type": db_type.value,
-                    "total_indexes": total_indexes,
-                    "unhealthy_count": unhealthy_count,
-                }
-            )
-            
-            return DomainResponse(
-                status=DomainResult.SUCCESS,
-                data={
+            return {
+                "data": {
                     "indexes": [idx.to_dict() for idx in indexes],
                     "unhealthy_indexes": [idx.to_dict() for idx in unhealthy_indexes],
                     "total_indexes": total_indexes,
                     "unhealthy_count": unhealthy_count,
                     "db_type": db_type.value,
                 },
-                message=message,
-            )
+                "message": message,
+            }
             
-        except InvalidInputError:
-            raise
         except Exception as e:
             logger.error(
                 f"Error checking index health: {e}",

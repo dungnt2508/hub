@@ -113,17 +113,30 @@ class LLMClassifierStep:
         """Build classification prompt for LLM"""
         # Get available intents from registry
         intents_info = []
+        domains_mentioned = set()
+        
         for intent_name, intent_info in intent_registry.intents.items():
             intents_info.append(
                 f"- {intent_name} (domain: {intent_info.domain}, type: {intent_info.intent_type})"
             )
+            domains_mentioned.add(intent_info.domain)
         
         intents_list = "\n".join(intents_info)
+        domains_list = ", ".join(sorted(domains_mentioned))
         
         prompt = f"""Bạn là một classifier để route câu hỏi của người dùng đến đúng domain và intent.
 
+Các domain khả dụng: {domains_list}
+
 Các intent khả dụng:
 {intents_list}
+
+Hướng dẫn phân loại:
+- HR domain: Những câu hỏi liên quan đến nhân sự, nghỉ phép, lương, nhân viên
+- Catalog domain: Những câu hỏi liên quan đến tìm kiếm sản phẩm, tra cứu giá
+- DBA domain: Những câu hỏi liên quan đến hiệu năng database, query chậm, index, capacity, alerts
+- Meta domain: Chào hỏi, cảm ơn, những tác vụ meta
+- Knowledge domain: Những câu hỏi hỏi đáp chung
 
 Câu hỏi của người dùng: "{message}"
 
@@ -144,7 +157,12 @@ Nếu không thể phân loại chắc chắn, trả về:
         return prompt
     
     def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse LLM response JSON"""
+        """
+        Parse LLM response JSON.
+        
+        NOTE: This returns raw confidence.
+        Threshold checking is done by orchestrator only (see ThresholdPolicy).
+        """
         try:
             # Try to extract JSON from response
             response_text = response_text.strip()
@@ -177,21 +195,14 @@ Nếu không thể phân loại chắc chắn, trả về:
             if not intent_registry.is_valid_intent(intent):
                 return {"classified": False, "reason": "invalid_intent"}
             
-            # Check confidence threshold
-            if confidence < config.LLM_THRESHOLD:
-                return {
-                    "classified": False,
-                    "reason": "confidence_below_threshold",
-                    "confidence": confidence,
-                }
-            
+            # Return raw confidence - orchestrator decides based on ThresholdPolicy
             intent_info = intent_registry.get_intent(intent)
             return {
                 "classified": True,
                 "domain": domain,
                 "intent": intent,
                 "intent_type": intent_info.intent_type if intent_info else None,
-                "confidence": confidence,
+                "confidence": confidence,  # RAW confidence
                 "source": "LLM",
             }
             

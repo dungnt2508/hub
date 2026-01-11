@@ -34,16 +34,20 @@ class PostgreSQLConnectionRepository(IConnectionRepository):
         
         try:
             async with pool.acquire() as conn:
+                # Handle db_type - could be enum or string due to use_enum_values=True
+                db_type_value = connection.db_type.value if hasattr(connection.db_type, 'value') else connection.db_type
+                status_value = connection.status.value if hasattr(connection.status, 'value') else connection.status
+                
                 row = await conn.fetchrow(
                     query,
                     connection.connection_id,
                     connection.name,
-                    connection.db_type.value,
+                    db_type_value,
                     connection.connection_string,  # Already encrypted
                     connection.description,
                     connection.environment,
                     connection.tags,
-                    connection.status.value,
+                    status_value,
                     connection.created_by,
                     connection.tenant_id,
                     connection.created_at,
@@ -219,12 +223,19 @@ class PostgreSQLConnectionRepository(IConnectionRepository):
         
         for field in allowed_fields:
             if field in updates:
-                if field == "connection_string" and updates[field]:
+                value = updates[field]
+                
+                # Handle enum to string conversion for db_type and status
+                if field == "db_type" and hasattr(value, 'value'):
+                    value = value.value
+                elif field == "status" and hasattr(value, 'value'):
+                    value = value.value
+                elif field == "connection_string" and value:
                     # Encrypt connection string if provided
-                    updates[field] = DatabaseConnection.encrypt_connection_string(updates[field])
+                    value = DatabaseConnection.encrypt_connection_string(value)
                 
                 set_clauses.append(f"{field} = ${param_idx}")
-                params.append(updates[field])
+                params.append(value)
                 param_idx += 1
         
         if not set_clauses:

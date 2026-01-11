@@ -43,6 +43,11 @@ class ExternalServiceError(RouterError):
     pass
 
 
+class DatabaseError(RouterError):
+    """Database operation error"""
+    pass
+
+
 class RouterTimeoutError(RouterError):
     """Operation timeout"""
     pass
