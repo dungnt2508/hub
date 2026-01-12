@@ -236,25 +236,33 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
   const renderExecutionTab = () => {
     const execution = pipelineData.execution_results;
 
+    if (!execution) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No execution results available yet.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-3 gap-4">
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-gray-700">Total Duration</p>
             <p className="text-2xl font-bold text-blue-700">
-              {(execution.total_duration_ms / 1000).toFixed(2)}s
+              {execution.total_duration_ms ? (execution.total_duration_ms / 1000).toFixed(2) : '0'}s
             </p>
           </div>
           <div className="p-4 bg-green-50 rounded-lg border border-green-200">
             <p className="text-sm text-gray-700">Successful Steps</p>
             <p className="text-2xl font-bold text-green-700">
-              {execution.step_results.filter(s => s.status === 'success').length} / {execution.step_results.length}
+              {execution.step_results ? execution.step_results.filter(s => s.status === 'success').length : 0} / {execution.step_results?.length || 0}
             </p>
           </div>
           <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
             <p className="text-sm text-gray-700">Total Rows Retrieved</p>
             <p className="text-2xl font-bold text-purple-700">
-              {execution.step_results.reduce((sum, s) => sum + s.rows, 0).toLocaleString()}
+              {execution.step_results ? execution.step_results.reduce((sum, s) => sum + s.rows, 0).toLocaleString() : 0}
             </p>
           </div>
         </div>
@@ -265,7 +273,7 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
             <Database className="w-5 h-5" /> Execution Steps
           </h3>
           <div className="space-y-2">
-            {execution.step_results.map((step) => {
+            {execution.step_results && execution.step_results.map((step) => {
               const isExpanded = expandedSteps.has(step.step);
               const statusIcon = {
                 'success': <CheckCircle className="w-5 h-5 text-green-600" />,
@@ -362,6 +370,14 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
   const renderInterpretationTab = () => {
     const interpretation = pipelineData.interpretation;
 
+    if (!interpretation) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No interpretation results available yet.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4">
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -369,7 +385,7 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
         </div>
 
         {/* Findings */}
-        {interpretation.findings.length > 0 && (
+        {interpretation.findings && interpretation.findings.length > 0 && (
           <div>
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <FileText className="w-5 h-5" /> Findings ({interpretation.findings.length})
@@ -415,7 +431,7 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
         )}
 
         {/* Risk Observations */}
-        {interpretation.risk_observations.length > 0 && (
+        {interpretation.risk_observations && interpretation.risk_observations.length > 0 && (
           <div>
             <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
               <TrendingUp className="w-5 h-5" /> Risk Observations
@@ -432,7 +448,7 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
         )}
 
         {/* Recommendations */}
-        {interpretation.recommendations.length > 0 && (
+        {interpretation.recommendations && interpretation.recommendations.length > 0 && (
           <div>
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Zap className="w-5 h-5" /> Recommendations
@@ -481,7 +497,7 @@ export default function DBAExecutionPlaybook({ pipelineData, onClose }: Props) {
         )}
 
         <div className="text-xs text-gray-500 pt-4 border-t">
-          <p>Analysis by {interpretation.llm_model} • {(interpretation.processing_time_ms / 1000).toFixed(2)}s</p>
+          <p>Analysis by {interpretation.llm_model} • {interpretation.processing_time_ms ? (interpretation.processing_time_ms / 1000).toFixed(2) : '0'}s</p>
         </div>
       </div>
     );

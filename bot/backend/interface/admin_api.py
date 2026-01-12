@@ -29,6 +29,9 @@ from ..schemas.admin_config_types import (
     TestSandboxRequest,
     TestSandboxResponse,
     AuditLogResponse,
+    DBAQueryTemplateCreate,
+    DBAQueryTemplateUpdate,
+    DBAQueryTemplateResponse,
 )
 from ..domain.admin.admin_config_service import admin_config_service
 from ..domain.admin.admin_user_service import admin_user_service
@@ -779,6 +782,90 @@ async def delete_guardrail(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting guardrail: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== DBA Query Templates ====================
+
+@router.get("/dba-query-templates", response_model=dict)
+async def list_dba_query_templates(
+    playbook_name: Optional[str] = Query(None),
+    db_type: Optional[str] = Query(None),
+    active_only: bool = Query(True),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(require_any_role),
+):
+    """List DBA query templates"""
+    try:
+        result = await admin_config_service.list_dba_query_templates(
+            playbook_name=playbook_name,
+            db_type=db_type,
+            active_only=active_only,
+            limit=limit,
+            offset=offset,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error listing DBA query templates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dba-query-templates/{template_id}", response_model=DBAQueryTemplateResponse)
+async def get_dba_query_template(
+    template_id: UUID,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """Get DBA query template by ID"""
+    try:
+        result = await admin_config_service.get_dba_query_template(template_id)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting DBA query template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dba-query-templates", response_model=DBAQueryTemplateResponse, status_code=201)
+async def create_dba_query_template(
+    template: DBAQueryTemplateCreate,
+    current_user: dict = Depends(require_admin),
+):
+    """Create DBA query template (admin only)"""
+    try:
+        result = await admin_config_service.create_dba_query_template(
+            template=template,
+            created_by=current_user["id"],
+        )
+        return result
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating DBA query template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/dba-query-templates/{template_id}", response_model=DBAQueryTemplateResponse)
+async def update_dba_query_template(
+    template_id: UUID,
+    template: DBAQueryTemplateUpdate,
+    current_user: dict = Depends(require_admin),
+):
+    """Update DBA query template (creates new version, admin only)"""
+    try:
+        result = await admin_config_service.update_dba_query_template(
+            template_id=template_id,
+            template=template,
+            updated_by=current_user["id"],
+        )
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating DBA query template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

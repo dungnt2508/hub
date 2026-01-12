@@ -5,121 +5,28 @@ Custom MCP Server cho database operations, hỗ trợ nhiều loại database kh
 ## Features
 
 - ✅ PostgreSQL support
-- ✅ MySQL support
-- 🔄 SQL Server support (partial)
-- 🔄 MongoDB support (planned)
-- 🔄 Oracle support (planned)
+- ✅ MySQL support  
+- ✅ SQL Server support
+- ✅ Raw query execution (used by backend execution flow)
+- ✅ Connection info endpoint
+- ✅ Health check endpoint
 
-## API Endpoints
+## Endpoints
 
-### POST /execute
-Execute custom SQL query
+### POST `/execute`
+Execute raw SQL query (used by backend execution flow).
 
-### POST /slow-queries
-Get slow queries from database
-
-### POST /wait-stats
-Get wait statistics
-
-### POST /index-stats
-Get index statistics
-
-### POST /blocking
-Detect blocking sessions
-
-### POST /connection-info
-Get database connection information
-
-### GET /health
-Health check endpoint
-
-## Setup
-
-### 1. Install Dependencies
-
-```bash
-pip install -r requirements.txt
+**Request:**
+```json
+{
+  "db_type": "postgresql",
+  "query": "SELECT * FROM users LIMIT 10",
+  "connection_string": "postgresql://user:pass@host:5432/db",
+  "params": {}
+}
 ```
 
-### 2. Environment Variables
-
-```bash
-# MCP Server Configuration
-MCP_SERVER_PORT=8387
-MCP_SERVER_HOST=0.0.0.0
-
-# Database Connection Strings (optional, can be passed in requests)
-DBA_DEFAULT_POSTGRESQL_URL=postgresql://user:pass@host:5432/db
-DBA_DEFAULT_MYSQL_URL=mysql://user:pass@host:3306/db
-```
-
-### 3. Run Server
-
-**Option 1: Using script (Recommended)**
-```bash
-# Linux/Mac
-./scripts/start_mcp_server.sh
-
-# Windows
-scripts\start_mcp_server.bat
-```
-
-**Option 2: Direct run**
-```bash
-# From project root
-python -m mcp_server.run_server
-
-# Or using uvicorn
-uvicorn mcp_server.main:app --host 0.0.0.0 --port 8387
-```
-
-**Option 3: Docker (if added to docker-compose)**
-```bash
-docker-compose up mcp-server
-```
-
-### 4. Verify Server is Running
-
-```bash
-# Check health endpoint
-curl http://localhost:8387/health
-
-# Should return: {"status": "healthy", "service": "mcp-db-server"}
-```
-
-**⚠️ Important:** MCP Server must be running before testing database connections!
-
-## Usage Example
-
-### Get Slow Queries
-
-```bash
-curl -X POST http://localhost:8387/slow-queries \
-  -H "Content-Type: application/json" \
-  -d '{
-    "db_type": "postgresql",
-    "connection_string": "postgresql://user:pass@localhost:5432/mydb",
-    "limit": 10,
-    "min_duration_ms": 1000
-  }'
-```
-
-### Check Index Health
-
-```bash
-curl -X POST http://localhost:8387/index-stats \
-  -H "Content-Type: application/json" \
-  -d '{
-    "db_type": "postgresql",
-    "connection_string": "postgresql://user:pass@localhost:5432/mydb",
-    "schema": "public"
-  }'
-```
-
-## Response Format
-
-All endpoints return MCP protocol format:
-
+**Response:**
 ```json
 {
   "data": [...],
@@ -127,37 +34,95 @@ All endpoints return MCP protocol format:
 }
 ```
 
-Or on error:
+### POST `/connection-info`
+Get database connection information.
 
+**Request:**
 ```json
 {
-  "data": null,
-  "error": {
-    "message": "Error message",
-    "type": "ErrorType"
-  }
+  "db_type": "postgresql",
+  "connection_string": "postgresql://user:pass@host:5432/db"
 }
 ```
 
-## Development
-
-### Adding New Database Type
-
-1. Add adapter in `database_adapters.py`
-2. Add query templates in `query_templates.py`
-3. Update `DatabaseType` enum
-
-### Testing
-
-```bash
-# Test health endpoint
-curl http://localhost:8387/health
+**Response:**
+```json
+{
+  "data": {
+    "database_type": "postgresql",
+    "version": "14.5",
+    "database": "mydb",
+    "user": "postgres"
+  },
+  "error": null
+}
 ```
 
-## Notes
+### GET `/health`
+Health check endpoint.
 
-- Connection strings are parsed and validated
-- Query parameters are sanitized (basic implementation)
-- For production, add proper SQL injection prevention
-- Consider connection pooling for better performance
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "mcp-db-server"
+}
+```
 
+## Database Connection Strings (optional, can be passed in requests)
+
+Set environment variables for default connections:
+```bash
+DBA_DEFAULT_POSTGRESQL_URL=postgresql://user:pass@host:5432/db
+DBA_DEFAULT_MYSQL_URL=mysql://user:pass@host:3306/db
+DBA_DEFAULT_SQLSERVER_URL=mssql+pyodbc://user:pass@host:1433/database
+```
+
+## Usage
+
+### Run Server
+```bash
+cd bot/mcp_server
+python -m uvicorn main:app --host 0.0.0.0 --port 8001
+```
+
+Or use the run script:
+```bash
+python -m mcp_server.run_server
+```
+
+### Test Endpoint
+```bash
+curl -X POST http://localhost:8001/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "db_type": "postgresql",
+    "query": "SELECT version()",
+    "connection_string": "postgresql://user:pass@host:5432/db"
+  }'
+```
+
+## Architecture
+
+**MCP Server Role:**
+- Provides database adapter layer (PostgreSQL, MySQL, SQL Server)
+- Executes raw SQL queries (queries come from backend `dba_query_templates` table)
+- Used by backend execution flow (ExecutionPlan → MCP execute)
+
+**Query Management:**
+- ✅ Queries are managed centrally in backend database (`dba_query_templates` table)
+- ✅ Backend execution flow loads queries from DB and sends to MCP `/execute`
+- ✅ MCP server does NOT store queries (queries come from backend)
+
+**Note:** 
+- Standalone query endpoints (like `/slow-queries`, `/wait-stats`) have been removed
+- All queries are managed centrally in backend database
+- Backend execution flow uses `/execute` endpoint with queries from DB
+
+---
+
+## Adding New Database Type
+
+1. Add adapter in `database_adapters.py`
+2. Update `DatabaseType` enum
+3. Register adapter in `_adapters` dict

@@ -7,9 +7,9 @@ import dbaSandboxService, {
   Connection,
   RiskAssessmentResponse,
   DBATestSandboxRequest,
-  UseCase,
 } from '@/services/dba-sandbox.service';
 import dbaConnectionsService, { DatabaseConnection } from '@/services/dba-connections.service';
+import dbaUseCasesService, { UseCaseMetadata } from '@/services/dba-use-cases.service';
 import {
   AlertCircle,
   CheckCircle,
@@ -47,7 +47,7 @@ export default function DBASandboxPage() {
   // STATE: INPUT SECTION
   // ============================================================
   const [connections, setConnections] = useState<DatabaseConnection[]>([]);
-  const [useCases, setUseCases] = useState<UseCase[]>([]);
+  const [useCases, setUseCases] = useState<UseCaseMetadata[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
   const [selectedUseCase, setSelectedUseCase] = useState<string>('');
   const [customQuery, setCustomQuery] = useState<string>('');
@@ -77,11 +77,11 @@ export default function DBASandboxPage() {
     try {
       setConnectionsLoading(true);
       const response = await dbaConnectionsService.listConnections({ status: 'active' });
-      const conns = response.items || [];
+      const conns = (response as any).items || [];
       setConnections(conns);
 
       if (conns.length > 0) {
-        const activeConn = conns.find((c) => c.status === 'active');
+        const activeConn = conns.find((c: DatabaseConnection) => c.status === 'active');
         setSelectedConnectionId(activeConn?.connection_id || conns[0].connection_id);
       }
     } catch (error: any) {
@@ -94,14 +94,15 @@ export default function DBASandboxPage() {
   const loadUseCases = async () => {
     try {
       setUseCasesLoading(true);
-      const cases = await dbaSandboxService.getUseCases();
+      const cases = await dbaUseCasesService.listUseCases();
+      console.log('🎯 Loaded use cases:', cases);
       setUseCases(cases);
 
       if (cases.length > 0) {
         setSelectedUseCase(cases[0].id);
       }
     } catch (error: any) {
-      console.error('Failed to load use cases:', error);
+      console.error('❌ Failed to load use cases:', error);
       toast.error(`Failed to load use cases: ${error.message}`);
     } finally {
       setUseCasesLoading(false);
@@ -172,7 +173,7 @@ export default function DBASandboxPage() {
     }
   };
 
-  const selectedConnection = connections.find((c) => c.id === selectedConnectionId);
+  const selectedConnection = connections.find((c) => c.connection_id === selectedConnectionId);
 
   /**
    * Render Decision Status
@@ -238,7 +239,7 @@ export default function DBASandboxPage() {
 
     const isProduction =
       selectedConnection.name?.toLowerCase().includes('prod') ||
-      selectedConnection.host?.toLowerCase().includes('prod');
+      selectedConnection.environment?.toLowerCase().includes('prod');
 
     return (
       <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded-lg p-4">
@@ -270,9 +271,15 @@ export default function DBASandboxPage() {
             </div>
           </div>
           <div>
-            <div className="text-gray-600 dark:text-gray-400">Host:Port</div>
-            <div className="font-mono text-gray-900 dark:text-white text-xs">
-              {selectedConnection.host}:{selectedConnection.port}
+            <div className="text-gray-600 dark:text-gray-400">Status</div>
+            <div
+              className={`font-mono ${
+                selectedConnection.status === 'active'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              }`}
+            >
+              {selectedConnection.status || 'unknown'}
             </div>
           </div>
         </div>
@@ -337,12 +344,12 @@ export default function DBASandboxPage() {
     return (
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">
-          {usecase.icon} {usecase.name}
+          {usecase.name}
         </h3>
         <p className="text-sm text-blue-800 dark:text-blue-300 mb-3">{usecase.description}</p>
-        {usecase.required_slots.length > 0 && (
+        {usecase.required_slots && usecase.required_slots.length > 0 && (
           <div className="text-xs text-blue-700 dark:text-blue-400">
-            <strong>Playbook Type:</strong> {usecase.intent}
+            <strong>Intent:</strong> {usecase.intent}
           </div>
         )}
       </div>
@@ -459,7 +466,7 @@ export default function DBASandboxPage() {
                         </span>
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        {conn.db_type?.toUpperCase()} • {conn.host}
+                        {conn.db_type?.toUpperCase()} • {conn.environment || 'unknown'}
                       </div>
                     </div>
                   </label>
@@ -504,7 +511,7 @@ export default function DBASandboxPage() {
                       />
                       <div className="ml-3 flex-1">
                         <div className="font-medium text-gray-900 dark:text-white">
-                          {usecase.icon} {usecase.name}
+                          {usecase.name}
                         </div>
                         <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                           {usecase.description}

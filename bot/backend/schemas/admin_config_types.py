@@ -193,6 +193,47 @@ class PromptTemplateVersion(BaseModel):
     created_by: Optional[UUID]
 
 
+# ==================== DBA Query Templates ====================
+
+class DBAQueryTemplateCreate(BaseModel):
+    """Create DBA query template request"""
+    playbook_name: str = Field(..., description="Playbook name (e.g., QUERY_PERFORMANCE)")
+    db_type: str = Field(..., description="Database type (sqlserver, postgresql, mysql)")
+    step_number: int = Field(..., ge=1, description="Step number in playbook")
+    purpose: str = Field(..., description="Purpose/description of this query")
+    query_text: str = Field(..., description="SQL query text")
+    read_only: bool = Field(True, description="Whether query is read-only")
+    description: Optional[str] = None
+
+
+class DBAQueryTemplateUpdate(BaseModel):
+    """Update DBA query template request (creates new version)"""
+    purpose: Optional[str] = None
+    query_text: Optional[str] = None
+    read_only: Optional[bool] = None
+    description: Optional[str] = None
+
+
+class DBAQueryTemplateResponse(BaseModel):
+    """DBA query template response"""
+    id: UUID
+    playbook_name: str
+    db_type: str
+    step_number: int
+    purpose: str
+    query_text: str
+    read_only: bool
+    version: int
+    is_active: bool
+    description: Optional[str]
+    created_by: Optional[UUID]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== Tool Permissions ====================
 
 class ToolPermissionCreate(BaseModel):

@@ -255,12 +255,12 @@ class DBASandboxService {
   }
 
   /**
-   * Get available DBA use cases
+   * Get available DBA use cases from unified API
    */
   async getUseCases(): Promise<UseCase[]> {
     try {
       const response = await apiClient.get<{ use_cases: UseCase[] }>(
-        '/api/admin/v1/test-sandbox/dba/use-cases'
+        '/api/dba/use-cases'
       );
       return response.use_cases || [];
     } catch (error: any) {

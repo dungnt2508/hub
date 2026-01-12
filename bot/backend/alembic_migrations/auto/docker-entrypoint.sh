@@ -66,6 +66,14 @@ if [ -n "$DATABASE_URL" ]; then
         echo -e "${YELLOW}[Entrypoint] Warning: Failed to create dba routing data (may already exist)${NC}"
     fi
 
+    # Create dba query templates
+    echo -e "${YELLOW}[Entrypoint] Creating dba query templates...${NC}"
+    if python -m backend.alembic_migrations.auto.seed_dba_query_templates; then
+        echo -e "${GREEN}[Entrypoint] Create dba query templates completed!${NC}"
+    else
+        echo -e "${YELLOW}[Entrypoint] Warning: Failed to create dba query templates (may already exist)${NC}"
+    fi
+
     # # Create meta routing data
     # echo -e "${YELLOW}[Entrypoint] Creating meta routing data...${NC}"
     # if python -m backend.alembic_migrations.auto.seed_meta_routing_data; then

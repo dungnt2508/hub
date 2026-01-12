@@ -17,7 +17,7 @@ import asyncio
 
 from ...schemas import DomainRequest
 from ...shared.logger import logger
-from ...shared.exceptions import DomainError
+from ...shared.exceptions import DomainError, SecurityViolation
 from .execution_plan_generator import ExecutionPlan, ExecutionStep
 from .ports.mcp_client import IMCPDBClient
 from .connection_registry_bridge import connection_registry_bridge
@@ -252,6 +252,32 @@ class DatabaseExecutor:
                 result.status = "failure"
                 result.error = "No query defined for step"
                 return result
+
+            # SECURITY: Enforce read-only at runtime
+            # Even though step.read_only is True, validate query content
+            # NOTE: EXEC is allowed for DBA stored procedures (sp_Blitz, sp_BlitzCache, etc.)
+            # These are pre-validated diagnostic procedures, not user input
+            dangerous_keywords = [
+                'INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 
+                'TRUNCATE', 'GRANT', 'REVOKE'
+            ]
+            query_upper = query.upper()
+            for keyword in dangerous_keywords:
+                # Check for keyword as whole word (not part of another word)
+                # Simple check: keyword followed by space or (
+                if f'{keyword} ' in query_upper or f'{keyword}(' in query_upper:
+                    error_msg = f"Write/DDL operation blocked: {keyword} detected in query"
+                    logger.error(
+                        error_msg,
+                        extra={
+                            "step": step.step,
+                            "purpose": step.purpose,
+                            "blocked_keyword": keyword,
+                        }
+                    )
+                    result.status = "failure"
+                    result.error = error_msg
+                    raise SecurityViolation(error_msg)
 
             logger.debug(
                 f"Executing query",

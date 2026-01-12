@@ -30,7 +30,11 @@ from ...schemas.admin_config_types import (
     GuardrailCreate,
     GuardrailUpdate,
     GuardrailResponse,
+    DBAQueryTemplateCreate,
+    DBAQueryTemplateUpdate,
+    DBAQueryTemplateResponse,
 )
+from ...infrastructure.dba_query_template_repository import dba_query_template_repository
 
 
 class AdminConfigService:
@@ -1814,6 +1818,161 @@ class AdminConfigService:
             created_by=row["created_by"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+        )
+    
+    # ==================== DBA Query Templates ====================
+    
+    async def list_dba_query_templates(
+        self,
+        playbook_name: Optional[str] = None,
+        db_type: Optional[str] = None,
+        active_only: bool = True,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """List DBA query templates"""
+        templates = await dba_query_template_repository.get_all_templates(
+            playbook_name=playbook_name,
+            db_type=db_type,
+            active_only=active_only
+        )
+        
+        # Apply pagination
+        total = len(templates)
+        items = templates[offset:offset + limit]
+        
+        # Convert to response format
+        result_items = [self._dba_query_template_from_dict(t) for t in items]
+        
+        return {
+            "items": result_items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+    
+    async def get_dba_query_template(self, template_id: UUID) -> DBAQueryTemplateResponse:
+        """Get DBA query template by ID"""
+        pool = self.db.pool
+        
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM dba_query_templates WHERE id = $1 AND is_active = true",
+                template_id
+            )
+        
+        if not row:
+            raise NotFoundError(f"DBA query template not found: {template_id}")
+        
+        return self._dba_query_template_from_dict(dict(row))
+    
+    async def create_dba_query_template(
+        self,
+        template: DBAQueryTemplateCreate,
+        created_by: UUID
+    ) -> DBAQueryTemplateResponse:
+        """Create DBA query template"""
+        # Validation
+        if not template.query_text or not template.query_text.strip():
+            raise ValidationError("Query text cannot be empty")
+        
+        # Validate SQL keywords (security check)
+        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'EXEC']
+        query_upper = template.query_text.upper()
+        if any(kw in query_upper for kw in dangerous_keywords):
+            if not template.read_only:
+                raise ValidationError(f"Dangerous SQL keywords detected. Template must be read_only=True")
+        
+        result_dict = await dba_query_template_repository.create_template(
+            playbook_name=template.playbook_name,
+            db_type=template.db_type,
+            step_number=template.step_number,
+            purpose=template.purpose,
+            query_text=template.query_text,
+            read_only=template.read_only,
+            description=template.description,
+            created_by=created_by,
+        )
+        
+        result = self._dba_query_template_from_dict(result_dict)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="dba_query_template",
+            config_id=result.id,
+            config_name=f"{template.playbook_name}/{template.db_type}/step_{template.step_number}",
+            action="create",
+            changed_by=created_by,
+            new_value=result.dict(),
+            tenant_id=None,  # DBA templates are global
+        )
+        
+        return result
+    
+    async def update_dba_query_template(
+        self,
+        template_id: UUID,
+        template: DBAQueryTemplateUpdate,
+        updated_by: UUID
+    ) -> DBAQueryTemplateResponse:
+        """Update DBA query template (creates new version)"""
+        # Get existing template
+        existing = await self.get_dba_query_template(template_id)
+        
+        # Validation
+        new_query_text = template.query_text if template.query_text is not None else existing.query_text
+        new_read_only = template.read_only if template.read_only is not None else existing.read_only
+        
+        if new_query_text:
+            dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'EXEC']
+            query_upper = new_query_text.upper()
+            if any(kw in query_upper for kw in dangerous_keywords):
+                if not new_read_only:
+                    raise ValidationError(f"Dangerous SQL keywords detected. Template must be read_only=True")
+        
+        result_dict = await dba_query_template_repository.update_template(
+            template_id=template_id,
+            query_text=template.query_text,
+            purpose=template.purpose,
+            description=template.description,
+            read_only=template.read_only,
+        )
+        
+        if not result_dict:
+            raise NotFoundError(f"DBA query template not found: {template_id}")
+        
+        result = self._dba_query_template_from_dict(result_dict)
+        
+        # Audit log
+        await self.audit_log.log_config_change(
+            config_type="dba_query_template",
+            config_id=result.id,
+            config_name=f"{existing.playbook_name}/{existing.db_type}/step_{existing.step_number}",
+            action="update",
+            changed_by=updated_by,
+            old_value=existing.dict(),
+            new_value=result.dict(),
+            tenant_id=None,
+        )
+        
+        return result
+    
+    def _dba_query_template_from_dict(self, data: Dict[str, Any]) -> DBAQueryTemplateResponse:
+        """Convert dict to DBAQueryTemplateResponse"""
+        return DBAQueryTemplateResponse(
+            id=data["id"],
+            playbook_name=data["playbook_name"],
+            db_type=data["db_type"],
+            step_number=data["step_number"],
+            purpose=data["purpose"],
+            query_text=data["query_text"],
+            read_only=data["read_only"],
+            version=data["version"],
+            is_active=data["is_active"],
+            description=data.get("description"),
+            created_by=data.get("created_by"),
+            created_at=data["created_at"],
+            updated_at=data["updated_at"],
         )
 
 

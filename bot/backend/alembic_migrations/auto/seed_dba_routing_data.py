@@ -83,7 +83,7 @@ async def create_dba_pattern_rules(created_by: UUID):
     pattern_rules = [
         {
             "rule_name": "DBA - Phân tích query chạy chậm",
-            "pattern_regex": r"(?:tìm|find|list|liệt kê|xem|view).*(?:query|queries|sql).*(?:chậm|slow|chạy chậm|slow query|performance)",
+            "pattern_regex": r"\b(query|sql)\b.*\b(chậm|slow|hiệu\s*năng|performance)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "analyze_slow_query",
@@ -92,18 +92,8 @@ async def create_dba_pattern_rules(created_by: UUID):
             "description": "Phân tích query chạy chậm",
         },
         {
-            "rule_name": "DBA - Phân tích query chạy chậm (alt)",
-            "pattern_regex": r"(?:query|queries|sql).*(?:chậm|slow|performance|hiệu năng).*(?:analysis|phân tích|tìm|find|detection|phát hiện)",
-            "pattern_flags": "IGNORECASE",
-            "target_domain": "dba",
-            "target_intent": "analyze_slow_query",
-            "intent_type": "OPERATION",
-            "priority": 93,
-            "description": "Phân tích query chạy chậm (alternative pattern)",
-        },
-        {
             "rule_name": "DBA - Kiểm tra sức khỏe index",
-            "pattern_regex": r"(?:index|index health|sức khỏe|khỏe mạnh|index status|fragmentation)\s+(?:check|kiểm tra|tình trạng|như thế nào)",
+            "pattern_regex": r"\b(index)\b.*\b(sức\s*khỏe|health|fragmentation|status|phân\s*mảnh)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "check_index_health",
@@ -113,7 +103,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Phát hiện blocking",
-            "pattern_regex": r"(?:blocking|block|bị khoá|lock|khóa|chặn)\s+(?:detect|phát hiện|session|sessions)",
+            "pattern_regex": r"\b(blocking|block|lock|khóa|chặn)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "detect_blocking",
@@ -123,7 +113,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Phân tích wait stats",
-            "pattern_regex": r"(?:wait|chờ|đợi|stats|statistics|event)\s+(?:analysis|phân tích)",
+            "pattern_regex": r"\b(wait|wait\s*stats|chờ|đợi)\b.*\b(stats|statistics)?\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "analyze_wait_stats",
@@ -133,7 +123,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Phát hiện query regression",
-            "pattern_regex": r"(?:regression|performance|degradation|giảm|tệ hơn)\s+(?:query|detect|phát hiện)",
+            "pattern_regex": r"\b(query|sql)\b.*\b(regression|giảm|tệ\s*hơn|chậm\s*hơn|degradation)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "analyze_query_regression",
@@ -143,7 +133,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Phát hiện deadlock",
-            "pattern_regex": r"(?:deadlock|deadlock pattern|deadlock detection)\s+(?:detect|phát hiện|pattern)",
+            "pattern_regex": r"\b(deadlock|kẹt\s*khóa)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "detect_deadlock_pattern",
@@ -153,7 +143,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Phân tích I/O pressure",
-            "pattern_regex": r"(?:io|i/o|input|output|pressure|disk|đĩa)\s+(?:analysis|phân tích|pressure)",
+            "pattern_regex": r"\b(io|i/o|disk|đĩa)\b.*\b(pressure|cao|nghẽn|chậm|bottleneck)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "analyze_io_pressure",
@@ -163,7 +153,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Dự báo capacity",
-            "pattern_regex": r"(?:capacity|capacity forecast|dự báo|forecast|storage|dung lượng)\s+(?:forecast|dự báo|planning)",
+            "pattern_regex": r"\b(capacity|dung\s*lượng|storage)\b.*\b(dự\s*báo|forecast|planning|tăng)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "capacity_forecast",
@@ -173,7 +163,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - Validate custom SQL",
-            "pattern_regex": r"(?:validate|kiểm tra|check)\s+(?:sql|query|custom|statement)",
+            "pattern_regex": r"\b(sql|query)\b.*\b(validate|kiểm\s*tra|check|custom)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "validate_custom_sql",
@@ -183,7 +173,7 @@ async def create_dba_pattern_rules(created_by: UUID):
         },
         {
             "rule_name": "DBA - So sánh sp_Blitz vs Custom",
-            "pattern_regex": r"(?:blitz|sp_blitz|compare|so sánh|comparison)\s+(?:custom|analysis)",
+            "pattern_regex": r"\b(sp[_-]?blitz|blitz)\b.*\b(compare|so\s*sánh|vs|custom)\b",
             "pattern_flags": "IGNORECASE",
             "target_domain": "dba",
             "target_intent": "compare_sp_blitz_vs_custom",

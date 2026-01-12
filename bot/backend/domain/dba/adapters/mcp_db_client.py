@@ -18,7 +18,7 @@ class MCPDBClient(IMCPDBClient):
     def __init__(
         self,
         mcp_server_url: Optional[str] = None,
-        timeout: float = 30.0,
+        timeout: float = 180.0,
         connection_registry: Optional[ConnectionRegistry] = None
     ):
         """
@@ -26,7 +26,7 @@ class MCPDBClient(IMCPDBClient):
         
         Args:
             mcp_server_url: MCP server URL (defaults to env var MCP_DB_SERVER_URL)
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (default: 3 minutes)
             connection_registry: Connection registry for looking up connections
         """
         self.mcp_server_url = mcp_server_url or os.getenv(
@@ -49,6 +49,150 @@ class MCPDBClient(IMCPDBClient):
     async def close(self):
         """Close HTTP client"""
         await self.client.aclose()
+    
+    async def _call_mcp_server_with_timeout(
+        self,
+        method: str,
+        endpoint: str,
+        payload: Optional[Dict[str, Any]] = None,
+        timeout: float = 180.0,
+        retry_on_error: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Call MCP server endpoint with custom timeout.
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            endpoint: API endpoint
+            payload: Request payload
+            timeout: Request timeout in seconds (default: 3 minutes)
+            retry_on_error: Whether to retry on error
+            
+        Returns:
+            Response data as dictionary
+        """
+        url = f"{self.mcp_server_url}{endpoint}"
+        
+        try:
+            # Validate and clean payload
+            if payload and isinstance(payload, dict):
+                # Ensure all string values in payload are valid UTF-8
+                for key, value in payload.items():
+                    if isinstance(value, str):
+                        try:
+                            value.encode('utf-8').decode('utf-8')  # Verify UTF-8
+                        except (UnicodeDecodeError, UnicodeEncodeError) as e:
+                            logger.error(
+                                f"Payload field encoding error",
+                                extra={
+                                    "field": key,
+                                    "error": str(e),
+                                    "value_length": len(value) if value else 0
+                                }
+                            )
+                            # Try to sanitize
+                            payload[key] = value.encode('utf-8', errors='replace').decode('utf-8')
+            
+            # Create a temporary client with the specified timeout
+            async with httpx.AsyncClient(timeout=timeout) as temp_client:
+                logger.debug(
+                    f"Sending request to MCP server",
+                    extra={
+                        "url": url,
+                        "method": method,
+                        "timeout": timeout,
+                        "payload_type": type(payload).__name__
+                    }
+                )
+                
+                if method.upper() == "GET":
+                    response = await temp_client.get(url, params=payload)
+                elif method.upper() == "POST":
+                    response = await temp_client.post(url, json=payload)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+                
+                logger.debug(
+                    f"Received response from MCP server",
+                    extra={
+                        "url": url,
+                        "status_code": response.status_code,
+                        "response_length": len(response.text)
+                    }
+                )
+                
+                response.raise_for_status()
+                
+                # Parse JSON response
+                try:
+                    result = response.json()
+                except Exception as e:
+                    logger.error(
+                        f"Failed to parse MCP server JSON response: {e}, response text: {response.text[:200]}",
+                        extra={"url": url, "method": method}
+                    )
+                    raise ExternalServiceError(f"MCP server returned invalid JSON: {e}")
+                
+                # Check if result is None or empty
+                if result is None:
+                    logger.error(
+                        f"MCP server returned None response, status: {response.status_code}, text: {response.text[:200]}",
+                        extra={"url": url, "method": method}
+                    )
+                    raise ExternalServiceError("MCP server returned empty response")
+                
+                # Check for MCP protocol errors
+                if isinstance(result, dict) and result.get("error") is not None:
+                    error_obj = result.get("error")
+                    
+                    if isinstance(error_obj, dict):
+                        error_msg = error_obj.get("message", "Unknown MCP error")
+                        if not error_msg or error_msg == "None" or str(error_msg).lower() == "none":
+                            error_msg = f"MCP server error: {error_obj.get('type', 'UnknownError')}"
+                    else:
+                        error_msg = str(error_obj)
+                        if error_msg == "None" or error_msg.lower() == "none":
+                            error_msg = "Unknown MCP error (error message is None)"
+                    
+                    logger.error(f"MCP server error: {error_msg}, full result: {result}")
+                    raise ExternalServiceError(f"MCP server error: {error_msg}")
+                
+                # Return data if available, otherwise return the whole result
+                if isinstance(result, dict):
+                    return result.get("data", result)
+                return result
+                
+        except httpx.TimeoutException as e:
+            logger.error(
+                f"MCP server request timeout after {timeout}s: {e}",
+                extra={"url": url, "method": method}
+            )
+            raise ExternalServiceError(
+                f"MCP server request timeout after {timeout}s"
+            ) from e
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"MCP server HTTP error: {e.response.status_code} - {e.response.text}",
+                extra={"url": url, "method": method}
+            )
+            raise ExternalServiceError(
+                f"MCP server returned {e.response.status_code}: {e.response.text}"
+            ) from e
+        except httpx.RequestError as e:
+            logger.error(
+                f"MCP server request error: {e}",
+                extra={"url": url, "method": method}
+            )
+            raise ExternalServiceError(f"Failed to connect to MCP server: {e}") from e
+        except ExternalServiceError:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error calling MCP server: {e}",
+                extra={"url": url, "method": method},
+                exc_info=True
+            )
+            raise ExternalServiceError(f"Unexpected error: {e}") from e
     
     async def _call_mcp_server(
         self,
@@ -279,7 +423,7 @@ class MCPDBClient(IMCPDBClient):
         # Build payload
         payload = {
             "query": query,
-            "params": params or {},
+            "params": params if params else {},
             "timeout_seconds": timeout_seconds,
         }
         
@@ -301,7 +445,86 @@ class MCPDBClient(IMCPDBClient):
             else:
                 payload["db_type"] = str(db_type)
         
-        result = await self._call_mcp_server("POST", "/execute", payload)
+        # Sanitize payload: ensure all values are JSON-serializable and valid UTF-8
+        sanitized_payload = {}
+        for key, value in payload.items():
+            if value is None:
+                sanitized_payload[key] = None
+            elif isinstance(value, (str, int, float, bool)):
+                if isinstance(value, str):
+                    # Ensure string is valid UTF-8
+                    try:
+                        value.encode('utf-8').decode('utf-8')
+                        sanitized_payload[key] = value
+                    except (UnicodeDecodeError, UnicodeEncodeError):
+                        # Sanitize invalid UTF-8
+                        sanitized_payload[key] = value.encode('utf-8', errors='replace').decode('utf-8')
+                else:
+                    sanitized_payload[key] = value
+            elif isinstance(value, dict):
+                # Recursively sanitize dict values
+                sanitized_dict = {}
+                for dk, dv in value.items():
+                    if isinstance(dv, str):
+                        try:
+                            dv.encode('utf-8').decode('utf-8')
+                            sanitized_dict[dk] = dv
+                        except (UnicodeDecodeError, UnicodeEncodeError):
+                            sanitized_dict[dk] = dv.encode('utf-8', errors='replace').decode('utf-8')
+                    else:
+                        sanitized_dict[dk] = dv
+                sanitized_payload[key] = sanitized_dict
+            else:
+                sanitized_payload[key] = str(value)
+        
+        payload = sanitized_payload
+        
+        # Validate payload is valid UTF-8 (fix encoding issues before sending)
+        try:
+            # Convert payload to JSON and back to ensure valid UTF-8
+            import json
+            payload_json = json.dumps(payload)
+            payload_json.encode('utf-8')  # Ensure it's valid UTF-8
+            
+            # Log detailed payload for debugging
+            logger.debug(
+                f"Payload validation passed",
+                extra={
+                    "payload_json_length": len(payload_json),
+                    "query_length": len(payload.get("query", "")),
+                    "timeout_seconds": payload.get("timeout_seconds"),
+                    "has_connection_id": bool(payload.get("connection_id")),
+                    "has_connection_string": bool(payload.get("connection_string")),
+                    "db_type": payload.get("db_type")
+                }
+            )
+        except (UnicodeDecodeError, UnicodeEncodeError) as e:
+            logger.error(
+                f"Payload encoding error: {e}",
+                extra={
+                    "connection_id": connection_id,
+                    "connection_name": connection_name,
+                    "db_type": db_type,
+                    "query_length": len(query)
+                }
+            )
+            raise ValueError(f"Payload contains invalid UTF-8 data: {e}")
+        except Exception as e:
+            logger.error(
+                f"Unexpected error validating payload: {e}",
+                extra={
+                    "connection_id": connection_id,
+                    "db_type": db_type
+                },
+                exc_info=True
+            )
+            raise
+        
+        # Use dynamic timeout: max(timeout_seconds * 1.5, 200) to handle long-running queries
+        # Add 50% buffer to account for connection establishment, network latency and MCP server processing
+        http_timeout = max(timeout_seconds * 1.5, 200.0)
+        
+        result = await self._call_mcp_server_with_timeout("POST", "/execute", payload, http_timeout)
         return result if isinstance(result, list) else [result]
     
     async def _resolve_connection_string(

@@ -102,3 +102,8 @@ class LLMError(RouterError):
 class KeywordError(RouterError):
     """Keyword hint step failed"""
     pass
+
+
+class SecurityViolation(RouterError):
+    """Security violation - blocked operation (e.g., write/DDL operations)"""
+    pass

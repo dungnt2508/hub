@@ -219,7 +219,7 @@ class SQLServerAdapter(DatabaseAdapter):
             user=parsed["user"],
             password=parsed["password"],
             database=parsed["database"],
-            timeout=10,
+            timeout=180,  # 3 minutes for connection timeout
         )
     
     async def connect(self):
@@ -254,6 +254,47 @@ class SQLServerAdapter(DatabaseAdapter):
             )
             self._connection = None
     
+    def _sanitize_value(self, value: Any) -> Any:
+        """Sanitize value to ensure UTF-8 compatibility for JSON serialization"""
+        if value is None:
+            return None
+        elif isinstance(value, bytes):
+            # Try to decode bytes from common encodings
+            for encoding in ['utf-8', 'cp1252', 'iso-8859-1', 'utf-16']:
+                try:
+                    return value.decode(encoding)
+                except (UnicodeDecodeError, AttributeError):
+                    continue
+            # Last resort: use UTF-8 with error replacement
+            return value.decode('utf-8', errors='replace')
+        elif isinstance(value, str):
+            # Ensure string is valid UTF-8
+            try:
+                value.encode('utf-8').decode('utf-8')
+                return value
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                # Sanitize invalid UTF-8 sequences
+                return value.encode('utf-8', errors='replace').decode('utf-8')
+        else:
+            # For other types (int, float, bool, datetime, etc.), convert to string if needed
+            return value
+    
+    def _sanitize_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize entire row for UTF-8 compatibility"""
+        if not isinstance(row, dict):
+            return row
+        
+        sanitized = {}
+        for key, value in row.items():
+            # Sanitize key (column name)
+            if isinstance(key, bytes):
+                key = key.decode('utf-8', errors='replace')
+            
+            # Sanitize value
+            sanitized[key] = self._sanitize_value(value)
+        
+        return sanitized
+    
     def _execute_query_sync(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query synchronously"""
         cursor = self._connection.cursor(as_dict=True)
@@ -267,10 +308,35 @@ class SQLServerAdapter(DatabaseAdapter):
                     formatted_query = formatted_query.replace(placeholder, str(value))
             query = formatted_query
         
+        # Execute query (supports both regular queries and stored procedures like EXEC sp_BlitzCache)
         cursor.execute(query)
-        rows = cursor.fetchall()
+        
+        # Handle multiple result sets from stored procedures
+        rows = []
+        try:
+            fetched_rows = cursor.fetchall()
+            if fetched_rows:
+                # Sanitize each row for UTF-8 compatibility
+                rows = [self._sanitize_row(row) for row in fetched_rows]
+        except Exception as e:
+            # If no results or error fetching, that's okay
+            pass
+        
+        # If there are multiple result sets, fetch them all
+        try:
+            while cursor.nextset():
+                try:
+                    result_rows = cursor.fetchall()
+                    if result_rows:
+                        sanitized_rows = [self._sanitize_row(row) for row in result_rows]
+                        rows.extend(sanitized_rows)
+                except:
+                    pass
+        except:
+            pass
+        
         cursor.close()
-        return rows
+        return rows if rows else []
     
     async def execute_query(
         self,

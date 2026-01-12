@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
 import adminConfigService, { TestSandboxResponse } from '@/services/admin-config.service';
 import { Play, Code, CheckCircle, XCircle, Copy, Clock, Zap, Hash, Brain, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function TestSandboxPage() {
+  const router = useRouter();
   const [message, setMessage] = useState('');
   const [tenantId, setTenantId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,8 +28,44 @@ export default function TestSandboxPage() {
         message,
         tenant_id: tenantId.trim() || undefined,
       });
+      
+      // If routing was successful (not UNKNOWN), redirect to domain sandbox
+      if (response.routing_result.status === 'ROUTED' && response.routing_result.domain) {
+        // Extract routing context
+        const routingContext: any = {
+          original_user_input: message,
+          matched_use_case: response.routing_result.intent || response.routing_result.domain,
+          routing_score: response.routing_result.confidence,
+          matched_source: response.routing_result.source,
+          extracted_entities: response.routing_result.intent ? { intent: response.routing_result.intent } : {},
+          timestamp: new Date().toISOString(),
+          trace_id: response.trace.trace_id,
+        };
+        
+        // Find matched rule/regex from configs_used or trace
+        const patternMatch = response.configs_used.find(c => c.source === 'PATTERN');
+        if (patternMatch) {
+          routingContext.matched_regex = patternMatch.step;
+        }
+        
+        // Encode routing context as URL params
+        const params = new URLSearchParams();
+        params.set('routing_context', JSON.stringify(routingContext));
+        
+        // Redirect to domain sandbox
+        const domain = response.routing_result.domain.toLowerCase();
+        router.push(`/admin/domain-sandboxes/${domain}?${params.toString()}`);
+        toast.success(`Đã routing đến domain: ${domain}`);
+        return;
+      }
+      
+      // If UNKNOWN, stay on routing sandbox and show result
       setResult(response);
-      toast.success('Test thành công!');
+      if (response.routing_result.status === 'UNKNOWN') {
+        toast.error('Không tìm thấy domain phù hợp');
+      } else {
+        toast.success('Test thành công!');
+      }
     } catch (error: any) {
       toast.error(error.message || 'Test thất bại');
     } finally {
@@ -89,7 +127,7 @@ export default function TestSandboxPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Test Sandbox</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Test routing với message và xem trace chi tiết
+            Test routing với message và xem trace chi tiết. Nếu routing thành công, sẽ tự động chuyển đến domain sandbox.
           </p>
         </div>
 
@@ -137,7 +175,7 @@ export default function TestSandboxPage() {
           </div>
         </div>
 
-        {/* Results */}
+        {/* Results - Only shown if UNKNOWN or META_HANDLED */}
         {result && (
           <div className="space-y-6">
             {/* Routing Result */}
@@ -323,4 +361,3 @@ export default function TestSandboxPage() {
     </AdminLayout>
   );
 }
-

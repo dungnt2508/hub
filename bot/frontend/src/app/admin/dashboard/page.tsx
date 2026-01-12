@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
-import { Route, Hash, FileText, TestTube, FileSearch, Users, Code } from 'lucide-react';
+import { Route, Hash, FileText, TestTube, FileSearch, Users, Code, Database, FlaskConical, PlaySquare } from 'lucide-react';
 import Link from 'next/link';
 import UseCaseList from '@/components/UseCaseList';
 
@@ -57,6 +57,27 @@ export default function AdminDashboard() {
       title: 'Test Sandbox',
       description: 'Test routing với trace visualization',
       color: 'bg-pink-500',
+    },
+    {
+      href: '/admin/domain-sandboxes',
+      icon: FlaskConical,
+      title: 'Domain Sandboxes',
+      description: 'Domain-specific risk simulators (DBA, HR, Catalog)',
+      color: 'bg-amber-500',
+    },
+    {
+      href: '/admin/domain-sandboxes/dba',
+      icon: Database,
+      title: 'DBA Risk Simulator',
+      description: 'Test database operations safety và risk assessment',
+      color: 'bg-red-500',
+    },
+    {
+      href: '/admin/dba/use-cases',
+      icon: PlaySquare,
+      title: 'DBA Use Cases',
+      description: 'Metadata-driven use case execution với query editor',
+      color: 'bg-teal-500',
     },
     {
       href: '/admin/audit-logs',

@@ -125,6 +125,8 @@ class DBAExecutionPipeline:
         request: Optional[DomainRequest] = None,
         connection_string: Optional[str] = None,
         connection_name: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        query_overrides: Optional[Dict[str, str]] = None,
     ) -> PipelineExecutionResult:
         """
         Execute complete DBA pipeline.
@@ -181,6 +183,7 @@ class DBAExecutionPipeline:
                 use_case_id=use_case_id,
                 db_type=db_type,
                 risk_level=risk_assessment.risk_level,
+                query_overrides=query_overrides,
             )
             result.stages.append(stage2_result)
             result.execution_plan = execution_plan
@@ -291,6 +294,7 @@ class DBAExecutionPipeline:
         use_case_id: str,
         db_type: str,
         risk_level: str,
+        query_overrides: Optional[Dict[str, str]] = None,
     ) -> tuple[PipelineStageResult, Optional[ExecutionPlan]]:
         """
         Stage 2: Generate Execution Plan.
@@ -305,6 +309,7 @@ class DBAExecutionPipeline:
                 use_case_id=use_case_id,
                 risk_level=risk_level,
                 db_type=db_type,
+                query_overrides=query_overrides,
             )
 
             elapsed = time.time() - start_time
