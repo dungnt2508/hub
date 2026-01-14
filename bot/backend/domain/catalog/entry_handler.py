@@ -3,124 +3,184 @@ Catalog Domain Engine - Entry Handler
 """
 from typing import Dict, Any, Optional
 
-from ...schemas import DomainRequest, DomainResponse, DomainResult, KnowledgeRequest
+from ...schemas import DomainRequest, DomainResponse, DomainResult
 from ...shared.exceptions import DomainError, InvalidInputError
 from ...shared.logger import logger
-from ...knowledge import CatalogKnowledgeEngine
+from .adapters.catalog_repository import CatalogRepositoryAdapter
+from .use_cases import (
+    SearchProductUseCase,
+    GetProductInfoUseCase,
+    CompareProductsUseCase,
+    CheckAvailabilityUseCase,
+    GetProductPriceUseCase,
+)
 
 
 class CatalogEntryHandler:
     """
     Entry point for catalog domain engine.
     
-    Handles product search and recommendation requests using RAG pipeline.
+    Maps router intents to use cases and executes them.
+    Following Clean Architecture:
+    - Entry handler = Application layer (orchestration)
+    - Use cases = Domain layer (business logic)
+    - Repository adapter = Infrastructure layer (data access)
     """
     
-    def __init__(self, knowledge_engine: Optional[CatalogKnowledgeEngine] = None):
+    def __init__(
+        self,
+        repository: Optional[CatalogRepositoryAdapter] = None,
+    ):
         """
         Initialize catalog entry handler.
         
         Args:
-            knowledge_engine: Optional CatalogKnowledgeEngine instance
+            repository: Optional repository adapter (defaults to CatalogRepositoryAdapter)
         """
-        self.knowledge_engine = knowledge_engine or CatalogKnowledgeEngine()
-        logger.info("CatalogEntryHandler initialized")
+        # Initialize repository if not provided
+        if repository is None:
+            repository = CatalogRepositoryAdapter()
+        
+        # Initialize use cases with repository injection
+        self.use_cases = {
+            "catalog.search": SearchProductUseCase(repository),
+            "catalog.info": GetProductInfoUseCase(repository),
+            "catalog.compare": CompareProductsUseCase(repository),
+            "catalog.availability": CheckAvailabilityUseCase(repository),
+            "catalog.price": GetProductPriceUseCase(repository),
+        }
+        
+        # Intent mapping: Router intents (from seed data) → Use case keys
+        # This maps the intents from pattern rules/routing rules to our use case keys
+        self.intent_mapping = {
+            # Search intents
+            "search_products": "catalog.search",
+            "search_by_category": "catalog.search",  # Category search also uses search use case
+            
+            # Product info intents
+            "query_product_detail": "catalog.info",
+            "query_variant": "catalog.info",  # Variant query is part of product info
+            
+            # Price intent
+            "query_price": "catalog.price",
+            
+            # Availability intent
+            "check_availability": "catalog.availability",
+            
+            # Comparison intent
+            "compare_products": "catalog.compare",
+            
+            # Also support direct use case keys (for backward compatibility)
+            "catalog.search": "catalog.search",
+            "catalog.info": "catalog.info",
+            "catalog.compare": "catalog.compare",
+            "catalog.availability": "catalog.availability",
+            "catalog.price": "catalog.price",
+        }
+        
+        logger.info(
+            "CatalogEntryHandler initialized",
+            extra={
+                "use_cases": list(self.use_cases.keys()),
+                "intent_mapping": list(self.intent_mapping.keys()),
+            }
+        )
     
     async def handle(self, request: DomainRequest) -> DomainResponse:
         """
         Handle catalog domain request.
         
+        Maps router intent to use case and executes it.
+        
         Args:
             request: Domain request with intent and slots
         
         Returns:
-            Domain response with knowledge answer
+            Domain response with result
         
         Raises:
             DomainError: If handling fails
         """
         try:
+            # Validate request
+            validation_error = self._validate_request(request)
+            if validation_error:
+                return validation_error
+            
             logger.info(
                 "Catalog domain request received",
                 extra={
                     "trace_id": request.trace_id,
                     "intent": request.intent,
+                    "intent_type": request.intent_type,
                     "tenant_id": request.user_context.get("tenant_id"),
                 }
             )
             
-            # Catalog domain only handles KNOWLEDGE intents
-            if request.intent_type != "KNOWLEDGE":
-                raise InvalidInputError(
-                    f"Catalog domain only handles KNOWLEDGE intents, got: {request.intent_type}"
-                )
+            # Map router intent to use case key
+            use_case_key = self.intent_mapping.get(request.intent)
             
-            # Extract question from slots or user message
-            question = self._extract_question(request)
-            
-            if not question:
-                return DomainResponse(
-                    status=DomainResult.INVALID_REQUEST,
-                    message="Không thể xác định câu hỏi từ yêu cầu của bạn. Vui lòng thử lại.",
-                    error_code="MISSING_QUESTION",
-                )
-            
-            # Extract tenant_id from user_context
-            tenant_id = request.user_context.get("tenant_id")
-            if not tenant_id:
+            if not use_case_key:
                 logger.warning(
-                    "Missing tenant_id in catalog request",
+                    f"Unknown catalog intent: {request.intent}",
+                    extra={
+                        "trace_id": request.trace_id,
+                        "available_intents": list(self.intent_mapping.keys()),
+                    }
+                )
+                # Fallback to search if intent is unknown
+                use_case_key = "catalog.search"
+                logger.info(
+                    f"Falling back to catalog.search for unknown intent: {request.intent}",
                     extra={"trace_id": request.trace_id}
                 )
+            
+            # Validate use case exists
+            if use_case_key not in self.use_cases:
+                logger.error(
+                    f"Use case not found: {use_case_key}",
+                    extra={
+                        "trace_id": request.trace_id,
+                        "mapped_intent": use_case_key,
+                        "original_intent": request.intent,
+                    }
+                )
                 return DomainResponse(
-                    status=DomainResult.INVALID_REQUEST,
-                    message="Thiếu thông tin tenant. Vui lòng liên hệ admin.",
-                    error_code="MISSING_TENANT_ID",
+                    status=DomainResult.SYSTEM_ERROR,
+                    message=f"Internal error: use case '{use_case_key}' not found",
+                    error_code="USE_CASE_NOT_FOUND",
+                    error_details={
+                        "mapped_intent": use_case_key,
+                        "original_intent": request.intent,
+                        "available_use_cases": list(self.use_cases.keys()),
+                    }
                 )
             
-            # Create knowledge request
-            knowledge_request = KnowledgeRequest(
-                question=question,
-                domain=request.domain,
-                context={
-                    "tenant_id": tenant_id,
-                    "intent": request.intent,
-                    "user_context": request.user_context,
-                },
-                trace_id=request.trace_id,
+            # Get use case
+            use_case = self.use_cases[use_case_key]
+            
+            logger.debug(
+                f"Intent mapped: {request.intent} → {use_case_key}",
+                extra={
+                    "trace_id": request.trace_id,
+                    "original_intent": request.intent,
+                    "use_case_key": use_case_key,
+                }
             )
             
-            # Get answer from knowledge engine
-            knowledge_response = await self.knowledge_engine.answer(
-                knowledge_request,
-                tenant_id=tenant_id,
+            # Execute use case
+            result = await use_case.execute(request)
+            
+            logger.info(
+                "Catalog domain request completed",
+                extra={
+                    "trace_id": request.trace_id,
+                    "intent": request.intent,
+                    "status": result.status.value,
+                }
             )
             
-            # Format domain response
-            return DomainResponse(
-                status=DomainResult.SUCCESS,
-                data={
-                    "answer": knowledge_response.answer,
-                    "citations": knowledge_response.citations,
-                    "sources": [
-                        {
-                            "title": source.title,
-                            "url": source.url,
-                            "excerpt": source.excerpt,
-                        }
-                        for source in (knowledge_response.sources or [])
-                    ],
-                    "confidence": knowledge_response.confidence,
-                    "metadata": knowledge_response.metadata,
-                },
-                message=knowledge_response.answer,
-                audit={
-                    "domain": request.domain,
-                    "intent": request.intent,
-                    "confidence": knowledge_response.confidence,
-                    "products_found": knowledge_response.metadata.get("products_found", 0),
-                },
-            )
+            return result
             
         except InvalidInputError as e:
             logger.warning(
@@ -132,7 +192,7 @@ class CatalogEntryHandler:
                 message=str(e),
                 error_code="INVALID_INPUT",
             )
-        except Exception as e:
+        except DomainError as e:
             logger.error(
                 f"Catalog domain error: {e}",
                 extra={
@@ -143,46 +203,59 @@ class CatalogEntryHandler:
             )
             return DomainResponse(
                 status=DomainResult.SYSTEM_ERROR,
-                message="Xin lỗi, có lỗi xảy ra khi tìm kiếm sản phẩm. Vui lòng thử lại sau.",
+                message="Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu catalog. Vui lòng thử lại sau.",
+                error_code="DOMAIN_ERROR",
+                error_details={"error": str(e)},
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected catalog domain error: {e}",
+                extra={
+                    "trace_id": request.trace_id,
+                    "intent": request.intent,
+                },
+                exc_info=True
+            )
+            return DomainResponse(
+                status=DomainResult.SYSTEM_ERROR,
+                message="Xin lỗi, có lỗi hệ thống xảy ra. Vui lòng thử lại sau.",
                 error_code="SYSTEM_ERROR",
                 error_details={"error": str(e)},
             )
     
-    def _extract_question(self, request: DomainRequest) -> Optional[str]:
+    def _validate_request(self, request: DomainRequest) -> Optional[DomainResponse]:
         """
-        Extract question text from domain request.
+        Validate domain request before processing.
         
         Args:
-            request: Domain request
+            request: Domain request to validate
         
         Returns:
-            Question text or None
+            DomainResponse with error if validation fails, None if valid
         """
-        # Try to get question from slots
-        question = request.slots.get("question") or request.slots.get("query") or request.slots.get("message")
+        # Validate tenant_id
+        tenant_id = request.user_context.get("tenant_id")
+        if not tenant_id:
+            return DomainResponse(
+                status=DomainResult.INVALID_REQUEST,
+                message="Thiếu thông tin tenant. Vui lòng liên hệ admin.",
+                error_code="MISSING_TENANT_ID",
+            )
         
-        # If not in slots, try to construct from other slots
-        if not question and request.slots:
-            # Try to build question from available slots
-            parts = []
-            if request.slots.get("product_type"):
-                parts.append(f"loại {request.slots['product_type']}")
-            if request.slots.get("feature"):
-                parts.append(f"có tính năng {request.slots['feature']}")
-            if request.slots.get("tag"):
-                parts.append(f"về {request.slots['tag']}")
-            
-            if parts:
-                question = f"Tìm {', '.join(parts)}"
+        # Validate intent is not empty
+        if not request.intent or not request.intent.strip():
+            return DomainResponse(
+                status=DomainResult.INVALID_REQUEST,
+                message="Intent không được để trống.",
+                error_code="MISSING_INTENT",
+            )
         
-        # If still no question, use a default based on intent
-        if not question:
-            intent_defaults = {
-                "catalog.search": "Tìm kiếm sản phẩm",
-                "catalog.recommend": "Gợi ý sản phẩm phù hợp",
-                "catalog.info": "Thông tin về sản phẩm",
-            }
-            question = intent_defaults.get(request.intent, "Tìm kiếm sản phẩm")
+        # Validate domain matches
+        if request.domain != "catalog":
+            return DomainResponse(
+                status=DomainResult.INVALID_REQUEST,
+                message=f"Domain không khớp. Expected: catalog, Got: {request.domain}",
+                error_code="DOMAIN_MISMATCH",
+            )
         
-        return question
-
+        return None

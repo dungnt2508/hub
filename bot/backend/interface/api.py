@@ -13,6 +13,7 @@ from .multi_tenant_bot_api import MultiTenantBotAPI
 from .admin_api import router as admin_router
 from .domain_sandbox_api import sandbox_router
 from .routers.dba_routes import router as dba_router
+from .routers.catalog_routes import router as catalog_router
 from ..domain.sandbox import initialize_registry
 from .handlers.embed_init_handler import setup_test_data
 from ..shared.logger import logger
@@ -63,6 +64,9 @@ app.include_router(sandbox_router)
 
 # Register DBA API router
 app.include_router(dba_router)
+
+# Register Catalog API router
+app.include_router(catalog_router)
 
 # Global AI provider instance (will be closed on shutdown)
 _ai_provider: AIProvider = None

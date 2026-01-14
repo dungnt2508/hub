@@ -78,30 +78,103 @@ async def seed_catalog_routing_data():
 async def create_catalog_pattern_rules(created_by: UUID):
     """Create Catalog pattern rules"""
     from backend.schemas.admin_config_types import PatternRuleCreate
-    
+
     pattern_rules = [
+        # =========================
+        # SEARCH / DISCOVERY
+        # =========================
         {
-            "rule_name": "Catalog - Tìm kiếm sản phẩm",
-            "pattern_regex": r"(?:tìm|tìm kiếm|mua|bán|bán gì|mua gì|có gì)\s+(?:sản phẩm|hàng|đồ|món|sp)",
+            "rule_name": "Catalog - Tìm kiếm sản phẩm chung",
+            "pattern_regex": r"(tìm|tìm kiếm|có|bán|mua|xem)\s+(sản phẩm|hàng|đồ|món|sp)",
             "pattern_flags": "IGNORECASE",
             "target_domain": "catalog",
             "target_intent": "search_products",
             "intent_type": "KNOWLEDGE",
-            "priority": 70,
-            "description": "Tìm kiếm sản phẩm trong catalog",
+            "priority": 80,
+            "description": "Người dùng muốn xem hoặc tìm sản phẩm trong catalog",
         },
         {
-            "rule_name": "Catalog - Xem giá sản phẩm",
-            "pattern_regex": r"(?:giá|giá bao nhiêu|bao nhiêu tiền|giá cả)\s+(?:của|sản phẩm|món|hàng)",
+            "rule_name": "Catalog - Tìm sản phẩm theo loại/category",
+            "pattern_regex": r"(tìm|xem|có)\s+(.*)\s+(không|ko|không?)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "search_by_category",
+            "intent_type": "KNOWLEDGE",
+            "priority": 75,
+            "description": "Tìm sản phẩm theo category hoặc loại cụ thể",
+        },
+
+        # =========================
+        # PRICE
+        # =========================
+        {
+            "rule_name": "Catalog - Hỏi giá sản phẩm",
+            "pattern_regex": r"(giá|bao nhiêu tiền|bao nhiêu|giá cả)\s*(của)?\s*(sản phẩm|món|hàng|sp)?",
             "pattern_flags": "IGNORECASE",
             "target_domain": "catalog",
             "target_intent": "query_price",
             "intent_type": "KNOWLEDGE",
-            "priority": 65,
+            "priority": 90,
             "description": "Tra cứu giá sản phẩm",
         },
+
+        # =========================
+        # PRODUCT DETAIL
+        # =========================
+        {
+            "rule_name": "Catalog - Xem thông tin chi tiết sản phẩm",
+            "pattern_regex": r"(thông tin|chi tiết|mô tả|spec|cấu hình)\s+(sản phẩm|món|hàng|sp)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "query_product_detail",
+            "intent_type": "KNOWLEDGE",
+            "priority": 85,
+            "description": "Xem thông tin chi tiết của sản phẩm",
+        },
+
+        # =========================
+        # AVAILABILITY
+        # =========================
+        {
+            "rule_name": "Catalog - Kiểm tra còn hàng",
+            "pattern_regex": r"(còn hàng|hết hàng|có sẵn|available|in stock)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "check_availability",
+            "intent_type": "KNOWLEDGE",
+            "priority": 95,
+            "description": "Kiểm tra tình trạng còn hàng",
+        },
+
+        # =========================
+        # VARIANT / ATTRIBUTE
+        # =========================
+        {
+            "rule_name": "Catalog - Hỏi biến thể sản phẩm",
+            "pattern_regex": r"(size|màu|màu sắc|phiên bản|variant|loại nào)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "query_variant",
+            "intent_type": "KNOWLEDGE",
+            "priority": 70,
+            "description": "Hỏi các biến thể hoặc thuộc tính sản phẩm",
+        },
+
+        # =========================
+        # COMPARISON
+        # =========================
+        {
+            "rule_name": "Catalog - So sánh sản phẩm",
+            "pattern_regex": r"(so sánh|khác gì|hơn gì|so với)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "compare_products",
+            "intent_type": "KNOWLEDGE",
+            "priority": 60,
+            "description": "So sánh hai hoặc nhiều sản phẩm",
+        },
     ]
-    
+
     created_count = 0
     skipped_count = 0
     
@@ -125,30 +198,68 @@ async def create_catalog_pattern_rules(created_by: UUID):
 async def create_catalog_keyword_hints(created_by: UUID):
     """Create Catalog keyword hints"""
     from backend.schemas.admin_config_types import KeywordHintCreate
-    
+
     keyword_hints = [
         {
-            "rule_name": "Catalog Domain - Từ khóa tiếng Việt",
+            "rule_name": "Catalog Domain - Vietnamese Keywords (Normalized)",
             "domain": "catalog",
             "keywords": {
-                "sản phẩm": 0.95,
-                "hàng": 0.9,
-                "món": 0.9,
-                "đồ": 0.85,
-                "mua": 0.85,
-                "bán": 0.85,
-                "giá": 0.8,
-                "giá cả": 0.8,
-                "giá tiền": 0.75,
-                "tìm kiếm": 0.75,
-                "tìm": 0.7,
-                "catalog": 0.65,
-                "danh mục": 0.65,
+                # CORE OBJECT
+                "sản phẩm": 0.98,
+                "product": 0.95,
+                "sp": 0.95,
+                "hàng hóa": 0.92,
+                "mặt hàng": 0.92,
+
+                # CATEGORY / STRUCTURE
+                "danh mục": 0.9,
+                "loại": 0.85,
+                "category": 0.85,
+                "catalog": 0.85,
+
+                # SEARCH / DISCOVERY
+                "tìm": 0.8,
+                "tìm kiếm": 0.8,
+                "xem": 0.75,
+                "có bán": 0.85,
+                "có hàng": 0.85,
+
+                # PRICE
+                "giá": 0.9,
+                "bao nhiêu tiền": 0.95,
+                "giá bao nhiêu": 0.95,
+                "giá cả": 0.85,
+                "giá tiền": 0.85,
+
+                # DETAIL / INFO
+                "thông tin": 0.85,
+                "chi tiết": 0.85,
+                "mô tả": 0.8,
+                "spec": 0.8,
+                "cấu hình": 0.8,
+
+                # VARIANT / ATTRIBUTE
+                "size": 0.8,
+                "màu": 0.8,
+                "màu sắc": 0.8,
+                "phiên bản": 0.8,
+                "variant": 0.8,
+
+                # AVAILABILITY
+                "còn hàng": 0.95,
+                "hết hàng": 0.95,
+                "available": 0.9,
+                "in stock": 0.9,
+
+                # COMPARISON
+                "so sánh": 0.75,
+                "so với": 0.75,
+                "khác gì": 0.75,
             },
-            "description": "Từ khóa cho domain Catalog (Danh mục sản phẩm)",
+            "description": "Keyword hints chuẩn hóa cho domain Catalog, tối ưu routing intent truy vấn sản phẩm",
         },
     ]
-    
+
     created_count = 0
     skipped_count = 0
     
@@ -172,24 +283,85 @@ async def create_catalog_keyword_hints(created_by: UUID):
 async def create_catalog_routing_rules(created_by: UUID):
     """Create Catalog routing rules"""
     from backend.schemas.admin_config_types import RoutingRuleCreate
-    
+
     routing_rules = [
+        # =========================
+        # HARD ROUTE – HIGH CONFIDENCE
+        # =========================
         {
-            "rule_name": "Catalog - Tìm kiếm sản phẩm",
+            "rule_name": "Catalog - Kiểm tra tồn kho",
+            "intent_pattern": {"intent": "check_availability", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 95,
+            "description": "Routing intent kiểm tra còn hàng vào catalog domain",
+        },
+        {
+            "rule_name": "Catalog - Tra cứu giá sản phẩm",
+            "intent_pattern": {"intent": "query_price", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 92,
+            "description": "Routing intent hỏi giá vào catalog domain",
+        },
+
+        # =========================
+        # PRODUCT DETAIL
+        # =========================
+        {
+            "rule_name": "Catalog - Xem chi tiết sản phẩm",
+            "intent_pattern": {"intent": "query_product_detail", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 90,
+            "description": "Routing intent xem thông tin chi tiết sản phẩm",
+        },
+        {
+            "rule_name": "Catalog - Hỏi biến thể sản phẩm",
+            "intent_pattern": {"intent": "query_variant", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 85,
+            "description": "Routing intent hỏi size, màu, phiên bản sản phẩm",
+        },
+
+        # =========================
+        # SEARCH / DISCOVERY
+        # =========================
+        {
+            "rule_name": "Catalog - Tìm kiếm sản phẩm chung",
             "intent_pattern": {"intent": "search_products", "match_type": "exact"},
             "target_domain": "catalog",
             "priority": 80,
-            "description": "Điều hướng tìm kiếm sản phẩm đến domain Catalog",
+            "description": "Routing intent tìm kiếm sản phẩm vào catalog domain",
         },
         {
-            "rule_name": "Catalog - Tra cứu giá",
-            "intent_pattern": {"intent": "query_price", "match_type": "exact"},
+            "rule_name": "Catalog - Tìm theo danh mục",
+            "intent_pattern": {"intent": "search_by_category", "match_type": "exact"},
             "target_domain": "catalog",
-            "priority": 75,
-            "description": "Điều hướng tra cứu giá sản phẩm đến domain Catalog",
+            "priority": 78,
+            "description": "Routing intent tìm sản phẩm theo danh mục",
+        },
+
+        # =========================
+        # COMPARISON
+        # =========================
+        {
+            "rule_name": "Catalog - So sánh sản phẩm",
+            "intent_pattern": {"intent": "compare_products", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 70,
+            "description": "Routing intent so sánh sản phẩm",
+        },
+
+        # =========================
+        # FALLBACK GUARD
+        # =========================
+        {
+            "rule_name": "Catalog - Fallback Knowledge",
+            "intent_pattern": {"intent": "catalog_knowledge", "match_type": "prefix"},
+            "target_domain": "catalog",
+            "priority": 60,
+            "description": "Fallback cho các intent knowledge liên quan catalog nhưng chưa phân loại rõ",
         },
     ]
-    
+
     created_count = 0
     skipped_count = 0
     
@@ -213,28 +385,124 @@ async def create_catalog_routing_rules(created_by: UUID):
 async def create_catalog_prompt_templates(created_by: UUID):
     """Create Catalog system prompt templates"""
     from backend.schemas.admin_config_types import PromptTemplateCreate
-    
+
     prompt_templates = [
+        # =========================
+        # SEARCH
+        # =========================
         {
-            "rule_name": "Catalog - Tìm kiếm sản phẩm System Prompt",
-            "template_name": "Catalog - Tìm kiếm sản phẩm System Prompt",
+            "rule_name": "Catalog - Tìm kiếm sản phẩm (System)",
+            "template_name": "catalog_search_system",
             "template_type": "system",
             "domain": "catalog",
-            "template_text": "Bạn là trợ lý tìm kiếm sản phẩm. Hãy giúp người dùng tìm kiếm sản phẩm trong danh mục. Hỏi thêm thông tin nếu cần. Trả lời bằng tiếng Việt.",
-            "variables": {"required": [], "optional": ["search_query", "category", "price_range"]},
-            "description": "System prompt cho tìm kiếm sản phẩm",
+            "template_text": (
+                "Bạn là catalog search engine. "
+                "Nhiệm vụ: trả về danh sách sản phẩm khớp điều kiện tìm kiếm từ catalog. "
+                "Chỉ sử dụng dữ liệu catalog được cung cấp. "
+                "Không suy đoán. Không hỏi thêm. "
+                "Nếu không có kết quả, trả lời rõ: không tìm thấy sản phẩm phù hợp. "
+                "Output ngắn gọn, liệt kê theo danh sách. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["search_query"],
+                "optional": ["category", "price_range", "attributes"]
+            },
+            "description": "System prompt cho use case tìm kiếm sản phẩm trong catalog",
         },
+
+        # =========================
+        # PRICE
+        # =========================
         {
-            "rule_name": "Catalog - Tra cứu giá System Prompt",
-            "template_name": "Catalog - Tra cứu giá System Prompt",
+            "rule_name": "Catalog - Tra cứu giá sản phẩm (System)",
+            "template_name": "catalog_price_query_system",
             "template_type": "system",
             "domain": "catalog",
-            "template_text": "Bạn là trợ lý tra cứu giá. Hãy giúp người dùng tra cứu giá sản phẩm. Hiển thị giá rõ ràng và đầy đủ. Trả lời bằng tiếng Việt.",
-            "variables": {"required": ["product_name"], "optional": ["product_id", "category"]},
+            "template_text": (
+                "Bạn là catalog pricing engine. "
+                "Nhiệm vụ: trả về giá chính xác của sản phẩm từ catalog. "
+                "Không giải thích. Không marketing. "
+                "Nếu thiếu giá hoặc sản phẩm không tồn tại, nói rõ thiếu dữ liệu nào. "
+                "Giá phải hiển thị rõ ràng, đúng đơn vị. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["product_name"],
+                "optional": ["product_id", "variant_id"]
+            },
             "description": "System prompt cho tra cứu giá sản phẩm",
         },
+
+        # =========================
+        # PRODUCT DETAIL
+        # =========================
+        {
+            "rule_name": "Catalog - Thông tin chi tiết sản phẩm (System)",
+            "template_name": "catalog_product_detail_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog product information engine. "
+                "Nhiệm vụ: trả về thông tin chi tiết sản phẩm từ catalog. "
+                "Bao gồm: mô tả, thuộc tính, biến thể nếu có. "
+                "Không suy diễn công dụng. "
+                "Nếu field nào không có trong dữ liệu, ghi rõ là không có. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["product_name"],
+                "optional": ["product_id"]
+            },
+            "description": "System prompt cho truy vấn thông tin chi tiết sản phẩm",
+        },
+
+        # =========================
+        # AVAILABILITY
+        # =========================
+        {
+            "rule_name": "Catalog - Kiểm tra tồn kho (System)",
+            "template_name": "catalog_availability_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog availability engine. "
+                "Nhiệm vụ: trả về trạng thái còn hàng của sản phẩm. "
+                "Chỉ trả lời: còn hàng / hết hàng / không có dữ liệu. "
+                "Không đưa khuyến nghị mua. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["product_name"],
+                "optional": ["variant_id"]
+            },
+            "description": "System prompt cho kiểm tra tình trạng tồn kho",
+        },
+
+        # =========================
+        # COMPARISON
+        # =========================
+        {
+            "rule_name": "Catalog - So sánh sản phẩm (System)",
+            "template_name": "catalog_product_comparison_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog comparison engine. "
+                "Nhiệm vụ: so sánh các sản phẩm dựa trên dữ liệu catalog. "
+                "Chỉ so sánh các field tồn tại. "
+                "Không đánh giá chủ quan. "
+                "Output dạng bảng hoặc bullet rõ ràng. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["products"],
+                "optional": ["compare_fields"]
+            },
+            "description": "System prompt cho so sánh sản phẩm",
+        },
     ]
-    
+
     created_count = 0
     skipped_count = 0
     
