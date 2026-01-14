@@ -199,7 +199,9 @@ export default function CatalogSandboxPage() {
         </div>
 
         {/* Extracted Information */}
-        {Object.keys(classification.extracted_info).length > 0 && (
+        {classification.extracted_info && 
+         typeof classification.extracted_info === 'object' &&
+         Object.keys(classification.extracted_info).length > 0 && (
           <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
             <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Extracted Information</h4>
             <div className="space-y-2">

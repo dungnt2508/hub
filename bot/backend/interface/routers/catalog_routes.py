@@ -97,11 +97,22 @@ async def query_catalog(
             except Exception as e:
                 logger.warning(f"Failed to extract tenant_id from request: {e}")
         
+        # For sandbox/testing: use default tenant_id if not provided (development only)
         if not tenant_id:
-            raise HTTPException(
-                status_code=400,
-                detail="tenant_id is required. Provide in request body or ensure it's in request metadata."
-            )
+            from ...shared.config import config
+            if config.ENVIRONMENT in ["dev", "development"]:
+                tenant_id = "catalog-001"  # Default test tenant
+                logger.info("Using default test tenant_id for sandbox: catalog-001")
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "tenant_id is required. Provide it in one of these ways:\n"
+                        "1. In request body: {\"tenant_id\": \"your-tenant-uuid\", ...}\n"
+                        "2. In header: X-Tenant-Id: your-tenant-uuid\n"
+                        "3. In query param: ?tenant_id=your-tenant-uuid"
+                    )
+                )
         
         # Create domain request
         domain_request = DomainRequest(
