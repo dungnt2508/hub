@@ -6,11 +6,11 @@ from ..ports.repository import ICatalogRepository
 from ..entities.product import Product
 from ..value_objects.price import Price
 from ..value_objects.availability import Availability
-from ...infrastructure.catalog_client import CatalogClient, CatalogProduct
-from ...infrastructure.vector_store import get_vector_store
-from ...knowledge.catalog_retriever import CatalogRetriever, RetrievedProduct
-from ...shared.logger import logger
-from ...shared.exceptions import ExternalServiceError
+from ....infrastructure.catalog_client import CatalogClient, CatalogProduct
+from ....infrastructure.vector_store import get_vector_store
+from ....knowledge.catalog_retriever import CatalogRetriever, RetrievedProduct
+from ....shared.logger import logger
+from ....shared.exceptions import ExternalServiceError
 
 
 class CatalogRepositoryAdapter(ICatalogRepository):

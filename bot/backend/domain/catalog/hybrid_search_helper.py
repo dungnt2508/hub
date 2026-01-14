@@ -11,9 +11,9 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 import warnings
 
-from ..knowledge.catalog_retriever import RetrievedProduct
-from ..infrastructure.database_client import DatabaseClient
-from ..shared.logger import logger
+from ...knowledge.catalog_retriever import RetrievedProduct
+from ...infrastructure.database_client import DatabaseClient
+from ...shared.logger import logger
 
 
 class SearchStrategy(str, Enum):

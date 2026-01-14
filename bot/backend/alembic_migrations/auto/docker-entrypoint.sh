@@ -90,13 +90,13 @@ if [ -n "$DATABASE_URL" ]; then
     #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create hr routing data (may already exist)${NC}"
     # fi
 
-    # # Create catalog domain routing data
-    # echo -e "${YELLOW}[Entrypoint] Creating catalog domain routing data...${NC}"
-    # if python -m backend.alembic_migrations.auto.seed_catalog_routing_data; then
-    #     echo -e "${GREEN}[Entrypoint] Create catalog domain routing data completed!${NC}"
-    # else
-    #     echo -e "${YELLOW}[Entrypoint] Warning: Failed to create catalog domain routing data (may already exist)${NC}"
-    # fi
+     # Create catalog domain routing data
+     echo -e "${YELLOW}[Entrypoint] Creating catalog domain routing data...${NC}"
+     if python -m backend.alembic_migrations.auto.seed_catalog_routing_data; then
+         echo -e "${GREEN}[Entrypoint] Create catalog domain routing data completed!${NC}"
+     else
+         echo -e "${YELLOW}[Entrypoint] Warning: Failed to create catalog domain routing data (may already exist)${NC}"
+     fi
 
     #  # Create knowledge domain routing data
     # echo -e "${YELLOW}[Entrypoint] Creating knowledge domain routing data...${NC}"

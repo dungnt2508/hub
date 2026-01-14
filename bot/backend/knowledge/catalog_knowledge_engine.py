@@ -8,8 +8,8 @@ from ..infrastructure.ai_provider import AIProvider
 from ..shared.exceptions import ExternalServiceError
 from ..shared.logger import logger
 from .catalog_retriever import CatalogRetriever, RetrievedProduct
-from .domain.catalog.intent_classifier import CatalogIntentClassifier, CatalogIntentType
-from .domain.catalog.hybrid_search_helper import CatalogHybridSearchHelper
+from ..domain.catalog.intent_classifier import CatalogIntentClassifier, CatalogIntentType
+from ..domain.catalog.hybrid_search_helper import CatalogHybridSearchHelper
 
 
 # RAG Prompt Template - Strict Prompting Version

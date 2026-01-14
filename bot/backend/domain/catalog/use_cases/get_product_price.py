@@ -2,11 +2,11 @@
 Get Product Price Use Case
 """
 from typing import Optional
-from ...schemas import DomainRequest, DomainResponse, DomainResult
+from ....schemas import DomainRequest, DomainResponse, DomainResult
 from ..ports.repository import ICatalogRepository
 from ..entities.product import Product
 from .base_use_case import CatalogUseCase
-from ...shared.logger import logger
+from ....shared.logger import logger
 
 
 class GetProductPriceUseCase(CatalogUseCase):

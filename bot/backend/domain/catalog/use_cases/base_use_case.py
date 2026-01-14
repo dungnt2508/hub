@@ -3,9 +3,9 @@ Base Use Case for Catalog Domain
 """
 from abc import ABC, abstractmethod
 from typing import Optional
-from ...schemas import DomainRequest, DomainResponse, DomainResult
-from ...shared.exceptions import InvalidInputError
-from ...shared.logger import logger
+from ....schemas import DomainRequest, DomainResponse, DomainResult
+from ....shared.exceptions import InvalidInputError
+from ....shared.logger import logger
 
 
 class CatalogUseCase(ABC):
