@@ -145,18 +145,11 @@ class APIHandler:
                 from ..personalization import Preferences
                 preferences = Preferences()  # Default preferences
             
-            # Add preferences context to response formatting
-            preferences_context = {
-                "tone": preferences.tone.value if preferences else "neutral",
-                "style": preferences.style.value if preferences else "informative",
-                "language": preferences.language if preferences else "vi",
-            }
-            
             # Format response with personalization
+            # ResponseFormatter will load preferences internally
             formatted_response = await self.response_formatter.format_router_response(
                 domain_result if isinstance(domain_result, RouterResponse) else router_response,
-                user_id,
-                preferences_context=preferences_context
+                user_id
             )
             
             logger.info(

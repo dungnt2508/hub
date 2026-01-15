@@ -50,14 +50,15 @@ class MultiTenantAuthMiddleware:
         return auth_header[7:]  # Remove "Bearer " prefix
     
     @staticmethod
-    def verify_web_embed_jwt(token: str, tenant_id: str, origin: str) -> JWTPayload:
+    async def verify_web_embed_jwt(token: str, tenant_name: str, origin: str, jwt_secret: Optional[str] = None) -> JWTPayload:
         """
         Verify JWT for web embed flow.
         
         Args:
             token: JWT token
-            tenant_id: From URL/config
+            tenant_name: Tenant name/site_id from URL/config (e.g., "n8n-market") - used for lookup
             origin: From request origin header
+            jwt_secret: JWT secret (optional, will lookup from cache if not provided)
         
         Returns:
             JWTPayload if valid
@@ -66,21 +67,48 @@ class MultiTenantAuthMiddleware:
             AuthenticationError if invalid
         """
         try:
-            # Get tenant's JWT secret
-            jwt_secret = get_jwt_secret(tenant_id)
+            # Get tenant's JWT secret from cache using tenant_name (name/site_id)
+            config = None
             if not jwt_secret:
-                raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
+                from ...infrastructure.tenant_config_cache import tenant_config_cache
+                
+                try:
+                    # Lookup config by name (site_id)
+                    config = await tenant_config_cache.get_by_name(tenant_name)
+                    
+                    if config:
+                        jwt_secret = config.web_embed_jwt_secret
+                        logger.debug(f"JWT secret found from cache for tenant name: {tenant_name}")
+                    else:
+                        # Fallback to memory lookup (for test tenants)
+                        jwt_secret = get_jwt_secret(tenant_name)
+                        if jwt_secret:
+                            logger.debug(f"JWT secret found from memory for tenant: {tenant_name}")
+                except Exception as e:
+                    logger.error(f"Error getting tenant config from cache: {e}", exc_info=True)
+                    # Fallback to memory lookup
+                    jwt_secret = get_jwt_secret(tenant_name)
             
-            # Decode and verify
+            if not jwt_secret:
+                logger.warning(f"JWT secret not found for tenant name: {tenant_name}")
+                raise TenantNotFoundError(f"Tenant not found: {tenant_name}")
+            
+            # Decode and verify signature
             payload = jwt.decode(
                 token,
                 jwt_secret,
                 algorithms=["HS256"]
             )
             
-            # Validate payload
-            if payload.get("tenant_id") != tenant_id:
-                raise AuthenticationError("Token tenant mismatch")
+            # Get tenant_id from payload for validation
+            payload_tenant_id = payload.get("tenant_id")
+            if not payload_tenant_id:
+                raise AuthenticationError("JWT token missing tenant_id")
+            
+            # Verify that tenant_id in payload matches tenant config
+            # (config was looked up by name, so we need to verify the UUID matches)
+            if config and config.id != payload_tenant_id:
+                raise AuthenticationError("Token tenant_id does not match tenant config")
             
             if payload.get("channel") != ChannelType.WEB:
                 raise AuthenticationError("Token not for web channel")
@@ -112,7 +140,8 @@ class MultiTenantAuthMiddleware:
         tenant_id: str,
         user_key: str,
         origin: str,
-        expiry_seconds: int = 300
+        expiry_seconds: int = 300,
+        jwt_secret: Optional[str] = None
     ) -> str:
         """
         Generate JWT token for web embed.
@@ -122,13 +151,16 @@ class MultiTenantAuthMiddleware:
             user_key: Technical user key (hash of session_id)
             origin: Website origin
             expiry_seconds: Token lifetime (default 5 minutes)
+            jwt_secret: JWT secret (optional, will lookup if not provided)
         
         Returns:
             Signed JWT token
         """
-        jwt_secret = get_jwt_secret(tenant_id)
+        # Use provided jwt_secret or lookup from cache/memory
         if not jwt_secret:
-            raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
+            jwt_secret = get_jwt_secret(tenant_id)
+            if not jwt_secret:
+                raise TenantNotFoundError(f"Tenant not found: {tenant_id}")
         
         now = datetime.now()
         exp = now + timedelta(seconds=expiry_seconds)
@@ -228,9 +260,9 @@ class MultiTenantAuthMiddleware:
             raise AuthenticationError("Invalid Teams JWT")
     
     @staticmethod
-    def resolve_context_from_jwt(
+    async def resolve_context_from_jwt(
         token: str,
-        tenant_id: str,
+        tenant_name: str,
         origin: str,
         ip: Optional[str] = None,
     ) -> RequestContext:
@@ -239,16 +271,16 @@ class MultiTenantAuthMiddleware:
         
         Args:
             token: JWT token
-            tenant_id: Tenant ID
+            tenant_name: Tenant name/site_id (e.g., "n8n-market")
             origin: Request origin
             ip: Client IP
         
         Returns:
             RequestContext object
         """
-        payload = MultiTenantAuthMiddleware.verify_web_embed_jwt(
+        payload = await MultiTenantAuthMiddleware.verify_web_embed_jwt(
             token,
-            tenant_id,
+            tenant_name,
             origin
         )
         
@@ -311,10 +343,11 @@ def require_jwt_auth(func):
             auth_header = request.headers.get("Authorization", "")
             token = MultiTenantAuthMiddleware.extract_jwt_token(auth_header)
             
-            # Get tenant_id from request (path/query param or config)
-            tenant_id = kwargs.get("tenant_id") or request.query_params.get("tenant_id")
+            # Get tenant_name/tenant_id from request (path/query param or config)
+            # Prefer tenant_name (name/site_id) over tenant_id (UUID) for clarity
+            tenant_id = kwargs.get("tenant_id") or request.query_params.get("tenant_name") or request.query_params.get("tenant_id")
             if not tenant_id:
-                raise AuthenticationError("Missing tenant_id")
+                raise AuthenticationError("Missing tenant_name or tenant_id")
             
             # Get origin from request
             origin = request.headers.get("Origin", "")

@@ -237,7 +237,7 @@ class TenantService:
             # For now: assume site_id matches tenant name
             # In production: need a separate site_id column or mapping table
             query = """
-            SELECT id, name, web_embed_origins, web_embed_jwt_secret
+            SELECT id, name, web_embed_enabled, web_embed_origins, web_embed_jwt_secret, web_embed_token_expiry_seconds
             FROM tenants
             WHERE name = $1
             LIMIT 1

@@ -655,7 +655,7 @@
             }
 
             // Send message to bot
-            const response = await fetch(`${config.apiUrl}/bot/message?tenant_id=${config.siteId}`, {
+            const response = await fetch(`${config.apiUrl}/bot/message?tenant_name=${config.siteId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

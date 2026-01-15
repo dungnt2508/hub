@@ -177,6 +177,11 @@ services:
       REDIS_URL: redis://hub_redis:6379/0
       QDRANT_URL: http://hub_qdrant:6333
       MCP_DB_SERVER_URL: http://mcp-server:8387  # Use service name in Docker network
+      CATALOG_API_URL: http://catalog_backend:3001  # Catalog service URL (use service name in Docker network, catalog_client will add /api prefix)
+      # Embedding model config - using large model with 3072 dimensions
+      LITELLM_EMBEDDING_MODEL: infra/text-embedding-3-large  # 3072 dimensions
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-large  # 3072 dimensions (fallback)
+      VECTOR_DIMENSION: 3072  # Match embedding model dimension
       PYTHONPATH: /app
     depends_on:
       - mcp-server  # Backend depends on MCP server

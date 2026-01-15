@@ -242,7 +242,8 @@ async def bot_message(request: Request):
     - Origin: Required (validated against token)
     
     Query Params:
-    - tenant_id: Tenant ID (required for now)
+    - tenant_name: Tenant name/site_id (e.g., "n8n-market") - preferred
+    - tenant_id: Tenant ID (UUID) - for backward compatibility
     
     Body:
     {

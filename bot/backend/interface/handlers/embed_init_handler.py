@@ -4,14 +4,17 @@ Xử lý POST /embed/init endpoint
 """
 
 from typing import Dict, Any, Optional
+import asyncio
 import hashlib
 import os
 from datetime import datetime
 
 from ..middleware.multi_tenant_auth import MultiTenantAuthMiddleware
-from ...shared.auth_config import get_tenant_config, validate_origin, register_test_tenant
+from ...shared.auth_config import register_test_tenant  # Removed get_tenant_config, validate_origin - now using DB lookup
 from ...shared.logger import logger
 from ...shared.exceptions import TenantNotFoundError, AuthorizationError
+from ...infrastructure.tenant_config_cache import tenant_config_cache
+from ...schemas.multi_tenant_types import TenantConfig
 
 
 class EmbedInitHandler:
@@ -92,11 +95,9 @@ class EmbedInitHandler:
                     "status_code": 400
                 }
             
-            # Get tenant config by site_id
-            # TODO: Implement site_id → tenant_id mapping in DB
-            tenant_id = EmbedInitHandler._resolve_tenant_id(site_id)
-            
-            config = get_tenant_config(tenant_id)
+            # Get tenant config by site_id with multi-layer caching
+            # L1: Memory → L2: Redis → L3: Database
+            config = await tenant_config_cache.get_by_name(site_id)
             if not config:
                 logger.warning(f"Tenant not found: {site_id}")
                 return {
@@ -104,6 +105,8 @@ class EmbedInitHandler:
                     "message": "Tenant not found",
                     "status_code": 404
                 }
+            
+            tenant_id = config.id
             
             if not config.web_embed_enabled:
                 logger.warning(f"Web embed not enabled for tenant: {tenant_id}")
@@ -113,10 +116,32 @@ class EmbedInitHandler:
                     "status_code": 403
                 }
             
-            # Validate origin
-            if not validate_origin(tenant_id, origin):
+            # Validate origin using config from database
+            if not config.web_embed_origins:
+                logger.warning(f"No allowed origins configured for tenant: {tenant_id}")
+                return {
+                    "error": True,
+                    "message": "Web embed origins not configured",
+                    "status_code": 403
+                }
+            
+            # Check if origin is allowed
+            origin_allowed = False
+            for allowed in config.web_embed_origins:
+                if allowed == "*":
+                    origin_allowed = True  # Allow all origins in development
+                    break
+                if allowed == origin:
+                    origin_allowed = True
+                    break
+                # Wildcard matching (simple)
+                if allowed.startswith("*.") and origin.endswith(allowed[1:]):
+                    origin_allowed = True
+                    break
+            
+            if not origin_allowed:
                 logger.warning(
-                    f"Origin not allowed - tenant: {tenant_id}, origin: {origin}"
+                    f"Origin not allowed - tenant: {tenant_id}, origin: {origin}, allowed: {config.web_embed_origins}"
                 )
                 return {
                     "error": True,
@@ -128,12 +153,13 @@ class EmbedInitHandler:
             session_id = EmbedInitHandler._generate_session_id()
             user_key = EmbedInitHandler.generate_user_key(site_id, session_id)
             
-            # Issue JWT token
+            # Issue JWT token (use jwt_secret from config)
             token = MultiTenantAuthMiddleware.generate_web_embed_jwt(
                 tenant_id=tenant_id,
                 user_key=user_key,
                 origin=origin,
-                expiry_seconds=config.web_embed_token_expiry_seconds
+                expiry_seconds=config.web_embed_token_expiry_seconds,
+                jwt_secret=config.web_embed_jwt_secret  # Use secret from cached config
             )
             
             # Log initialization (for analytics)
@@ -165,13 +191,14 @@ class EmbedInitHandler:
                 "status_code": 500
             }
     
+    
     @staticmethod
     def _resolve_tenant_id(site_id: str) -> str:
         """
         Resolve tenant_id from site_id.
-        TODO: Implement database lookup
+        DEPRECATED: Use _get_tenant_from_db() instead
         
-        For now: site_id == tenant_id
+        For now: site_id == tenant_id (kept for backward compatibility)
         """
         return site_id
     

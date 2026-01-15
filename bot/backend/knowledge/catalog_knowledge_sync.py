@@ -66,7 +66,7 @@ class CatalogKnowledgeSyncService:
         self.vector_store = get_vector_store()
         logger.info("CatalogKnowledgeSyncService initialized")
     
-    async def sync_tenant_products(
+    async def  sync_tenant_products(
         self,
         tenant_id: str,
         batch_size: int = 10,

@@ -44,25 +44,31 @@ class AuthContextResolver:
     def extract_tenant_id(request: Request, required: bool = True) -> Optional[str]:
         """
         Extract tenant_id from query params or path.
+        Supports both tenant_id (UUID) and tenant_name (name/site_id) for backward compatibility.
         
         Args:
             request: FastAPI request object
             required: Whether tenant_id is required
-            
+        
         Returns:
-            Tenant ID string or None
-            
+            Tenant ID/name string or None
+        
         Raises:
-            InvalidInputError: If tenant_id is required but missing
+            InvalidInputError: If tenant_id/tenant_name is required but missing
         """
-        tenant_id = request.query_params.get("tenant_id")
+        # Try tenant_name first (for /bot/message endpoint)
+        tenant_id = request.query_params.get("tenant_name")
+        
+        # Fallback to tenant_id (for backward compatibility)
+        if not tenant_id:
+            tenant_id = request.query_params.get("tenant_id")
         
         # Try path param if not in query
         if not tenant_id and hasattr(request, "path_params"):
-            tenant_id = request.path_params.get("tenant_id")
+            tenant_id = request.path_params.get("tenant_id") or request.path_params.get("tenant_name")
         
         if required and not tenant_id:
-            raise InvalidInputError("Missing tenant_id parameter")
+            raise InvalidInputError("Missing tenant_id or tenant_name parameter")
         
         return tenant_id
     
@@ -84,7 +90,7 @@ class AuthContextResolver:
         }
     
     @staticmethod
-    def resolve_context_from_jwt(
+    async def resolve_context_from_jwt(
         request: Request,
         tenant_id: Optional[str] = None
     ) -> RequestContext:
@@ -113,10 +119,11 @@ class AuthContextResolver:
         metadata = AuthContextResolver.extract_request_metadata(request)
         
         # Resolve context from JWT
+        # tenant_id here is actually tenant_name (name/site_id) from query param
         try:
-            context = MultiTenantAuthMiddleware.resolve_context_from_jwt(
+            context = await MultiTenantAuthMiddleware.resolve_context_from_jwt(
                 token=token,
-                tenant_id=tenant_id,
+                tenant_name=tenant_id,  # Actually tenant_name from query param
                 origin=metadata["origin"],
                 ip=metadata["ip"]
             )
@@ -149,7 +156,7 @@ class AuthContextResolver:
         from ..infrastructure.rate_limiter import RateLimitService
         
         # Resolve context
-        context = AuthContextResolver.resolve_context_from_jwt(request, tenant_id)
+        context = await AuthContextResolver.resolve_context_from_jwt(request, tenant_id)
         
         # Check rate limit
         allowed, rate_status = await RateLimitService.check_rate_limit(

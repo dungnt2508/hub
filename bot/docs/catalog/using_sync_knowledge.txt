@@ -1,0 +1,52 @@
+Cách sử dụng script sync_catalog_knowledge.py:
+Mục đích :
+Script này đồng bộ knowledge base từ Catalog Service vào vector store (Qdrant) cho bot để trả lời câu hỏi về sản phẩm.
+    Lấy danh sách sản phẩm từ Catalog Service
+    Chuyển đổi thành embeddings
+    Lưu vào Qdrant vector store
+    Cập nhật sync status trong database
+
+1. Liệt kê tất cả tenants
+
+cd bot
+docker exec -it bot_backend python -m backend.scripts.sync_catalog_knowledge --list-tenants
+
+Hiển thị danh sách tenants có sẵn để chọn tenant ID.
+
+2. Sync knowledge base cho một tenant
+
+cd bot
+docker exec -it bot_backend python -m backend.scripts.sync_catalog_knowledge --tenant-id <tenant_id>
+
+Ví dụ với tenant catalog-001:
+docker exec -it bot_backend python -m backend.scripts.sync_catalog_knowledge --tenant-id catalog-001
+
+3. Sync với batch size tùy chỉnh
+
+python -m backend.scripts.sync_catalog_knowledge --tenant-id catalog-001 --batch-size 20
+
+--batch-size: số sản phẩm xử lý mỗi batch (mặc định: 10)
+
+Yêu cầu :
+- Catalog Service đang chạy và có dữ liệu sản phẩm.
+- Qdrant đang chạy (vector store).
+
+
+4. check
+-- check biến tồn tại hay k
+G:\project python\hub\bot>docker exec bot_backend python -c "import os; print('CATALOG_API_URL:', os.getenv('CATALOG_API_URL', 'NOT SET'))"
+
+G:\project python\hub\bot>docker exec bot_backend python -c "import os; print('VECTOR_DIMENSION:', os.getenv('VECTOR_DIMENSION', 'NOT SET'))"
+
+
+-- xóa collection cũ
+cd bot
+docker exec bot_backend python -m backend.scripts.delete_collection --tenant-id c8f0b8a1-6523-4113-9b11-97c120952400
+
+-- xóa bằng qdrant api
+curl -X DELETE http://localhost:6333/collections/tenant_c8f0b8a1-6523-4113-9b11-97c120952400_products
+
+-- restart bot backend
+cd bot
+docker-compose stop backend
+docker-compose up -d backend
