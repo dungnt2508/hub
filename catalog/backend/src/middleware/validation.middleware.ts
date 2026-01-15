@@ -115,6 +115,8 @@ export const createProductSchema = z.object({
     is_free: z.boolean().default(true),
     price_type: z.enum(['free', 'onetime', 'subscription']).optional(),
     currency: z.string().max(10, 'Currency tối đa 10 ký tự').optional(),
+    stock_status: z.enum(['in_stock', 'out_of_stock', 'unknown']).optional(),
+    stock_quantity: z.number().int().min(0, 'Số lượng tồn kho không được âm').optional().nullable(),
     // Format validation only - business rules (positive, max length) validated in service
     price: z.number().optional(),
     version: z.string().optional().or(z.literal('')),
@@ -209,6 +211,8 @@ export const updateProductSchema = z.object({
     price: z.number().positive('Giá phải là số dương').optional(),
     price_type: z.enum(['free', 'onetime', 'subscription']).optional(),
     currency: z.string().max(10, 'Currency tối đa 10 ký tự').optional(),
+    stock_status: z.enum(['in_stock', 'out_of_stock', 'unknown']).optional(),
+    stock_quantity: z.number().int().min(0, 'Số lượng tồn kho không được âm').optional().nullable(),
     status: z.enum(['draft', 'published', 'archived'], {
         errorMap: () => ({ message: 'Trạng thái phải là draft, published, hoặc archived' }),
     }).optional(),

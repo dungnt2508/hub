@@ -1,4 +1,4 @@
-import { ProductDto, ProductReviewStatus, ProductStatus, ProductType, ProductPriceType } from '@gsnake/shared-types';
+import { ProductDto, ProductReviewStatus, ProductStatus, ProductType, ProductPriceType, ProductStockStatus } from '@gsnake/shared-types';
 
 /**
  * Product response DTO
@@ -21,6 +21,8 @@ export class ProductResponseDto implements ProductDto {
     price?: number;
     currency?: string = 'VND';
     priceType?: ProductPriceType = ProductPriceType.FREE;
+    stockStatus?: ProductStockStatus = ProductStockStatus.UNKNOWN;
+    stockQuantity?: number | null = null;
     status: ProductStatus = ProductStatus.DRAFT;
     reviewStatus: ProductReviewStatus = ProductReviewStatus.PENDING;
     reviewedAt?: string | null;

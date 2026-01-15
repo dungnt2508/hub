@@ -58,6 +58,12 @@ export enum ProductPriceType {
     SUBSCRIPTION = 'subscription',
 }
 
+export enum ProductStockStatus {
+    IN_STOCK = 'in_stock',
+    OUT_OF_STOCK = 'out_of_stock',
+    UNKNOWN = 'unknown',
+}
+
 export enum ReviewStatus {
     PENDING = 'pending',
     APPROVED = 'approved',

@@ -1,48 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Navbar from "@/components/marketplace/Navbar";
 import Footer from "@/components/marketplace/Footer";
 import TemplateCard from "@/components/marketplace/TemplateCard";
+import productService, { Product } from '@/services/product.service';
+import { ProductType } from '@gsnake/shared-types';
 import { Search, X, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-const MOCK_TOOLS = [
-  {
-    id: 2,
-    title: "Tool: Dashboard xem lịch tóm tắt",
-    description:
-      "UI dashboard để xem danh sách bài đã tóm tắt theo user, filter theo nguồn và thời gian.",
-    price: "Miễn phí",
-    author: "Team gsnake",
-    downloads: 80,
-    rating: 4.7,
-    tags: ["Tool", "Dashboard"],
-  },
-  {
-    id: 6,
-    title: "Tool: Quản lý persona user",
-    description:
-      "Giao diện quản lý và chỉnh sửa persona cho từng user, bao gồm tone, style, topics.",
-    price: "Miễn phí",
-    author: "Team gsnake",
-    downloads: 65,
-    rating: 4.6,
-    tags: ["Tool", "UI", "Persona"],
-  },
-];
-
 export default function ToolsPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
 
-  const filteredTools = MOCK_TOOLS.filter((tool) => {
-    const matchesSearch = 
-      tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tool.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tool.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    return matchesSearch;
-  });
+  useEffect(() => {
+    let isActive = true;
+    const timer = setTimeout(async () => {
+      try {
+        setLoading(true);
+        setErrorMessage(null);
+        const result = await productService.getProducts({
+          type: ProductType.TOOL,
+          search: searchQuery || undefined,
+          limit: 50,
+        });
+        if (!isActive) return;
+        setProducts(result.products);
+        setTotal(result.total);
+      } catch (error) {
+        if (!isActive) return;
+        setErrorMessage('Không thể tải danh sách tool');
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  const formatPrice = (product: Product) => {
+    if (product.isFree) return 'Miễn phí';
+    if (product.price !== undefined && product.price !== null) {
+      const currency = product.currency || 'VND';
+      return `${product.price.toLocaleString('vi-VN')} ${currency}`;
+    }
+    return 'Chưa có giá';
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 font-sans">
@@ -91,24 +102,34 @@ export default function ToolsPage() {
         {/* Results */}
         <section>
           <div className="mb-4 text-sm text-slate-400">
-            Tìm thấy {filteredTools.length} tool
+            Tìm thấy {total} tool
           </div>
 
-          {filteredTools.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-slate-400">Đang tải...</p>
+            </div>
+          ) : errorMessage ? (
+            <div className="text-center py-12 bg-[#111218] border border-slate-800 rounded-2xl">
+              <p className="text-slate-400 mb-2">{errorMessage}</p>
+              <p className="text-sm text-slate-500">Vui lòng thử lại sau</p>
+            </div>
+          ) : products.length === 0 ? (
             <div className="text-center py-12 bg-[#111218] border border-slate-800 rounded-2xl">
               <p className="text-slate-400 mb-2">Không tìm thấy tool nào</p>
               <p className="text-sm text-slate-500">Thử thay đổi từ khóa tìm kiếm</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredTools.map((tool) => (
+              {products.map((tool) => (
                 <TemplateCard
                   key={tool.id}
                   id={tool.id}
                   title={tool.title}
-                  description={tool.description}
-                  price={tool.price}
-                  author={tool.author}
+                  description={tool.description || 'Chưa có mô tả'}
+                  price={formatPrice(tool)}
+                  author="Đang cập nhật"
                   downloads={tool.downloads}
                   rating={tool.rating}
                   tags={tool.tags}

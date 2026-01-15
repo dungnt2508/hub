@@ -90,6 +90,27 @@ class CheckAvailabilityUseCase(CatalogUseCase):
                     }
                 )
             
+            if product.is_available() is None:
+                return DomainResponse(
+                    status=DomainResult.SUCCESS,
+                    message=f"Sản phẩm '{product.title}' chưa có dữ liệu tồn kho.",
+                    data={
+                        "product_id": product.id,
+                        "product_title": product.title,
+                        "available": None,
+                        "availability": product.get_availability_display(),
+                        "availability_status": product.availability.listing_status if product.availability else None,
+                        "stock_status": product.availability.stock_status if product.availability else None,
+                        "stock_quantity": product.availability.quantity if product.availability else None,
+                        "missing_fields": ["stock_status"],
+                    },
+                    audit={
+                        "intent": request.intent,
+                        "product_id": product.id,
+                        "missing_fields": ["stock_status"],
+                    }
+                )
+            
             # Generate availability answer
             answer = self._generate_answer(product)
             
@@ -101,6 +122,9 @@ class CheckAvailabilityUseCase(CatalogUseCase):
                     "product_title": product.title,
                     "available": product.is_available(),
                     "availability": product.get_availability_display(),
+                    "availability_status": product.availability.listing_status if product.availability else None,
+                    "stock_status": product.availability.stock_status if product.availability else None,
+                    "stock_quantity": product.availability.quantity if product.availability else None,
                 },
                 audit={
                     "intent": request.intent,
@@ -133,8 +157,9 @@ class CheckAvailabilityUseCase(CatalogUseCase):
     
     def _generate_answer(self, product: Product) -> str:
         """Generate availability answer"""
-        if product.is_available():
+        if product.is_available() is True:
             return f"Sản phẩm '{product.title}' {product.get_availability_display()}."
-        else:
+        if product.is_available() is False:
             return f"Sản phẩm '{product.title}' {product.get_availability_display()}."
+        return f"Sản phẩm '{product.title}' chưa có dữ liệu tồn kho."
 

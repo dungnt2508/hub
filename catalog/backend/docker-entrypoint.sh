@@ -45,6 +45,16 @@ cd /app/backend && npm run migrate || {
   echo "⚠️  Migration failed or already applied, continuing..."
   # Don't exit on migration failure - might be already applied
 }
+
+# Seed data (controlled by env SEED_ON_START=true)
+if [ "${SEED_ON_START}" = "true" ]; then
+  echo "🌱 Seeding catalog products..."
+  npm run seed:products || {
+    echo "⚠️  Seed failed, continuing..."
+  }
+else
+  echo "⏭️  Skip seeding (SEED_ON_START != true)"
+fi
 cd /app
 
 # Start the application

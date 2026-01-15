@@ -1,4 +1,4 @@
-import { ProductType, ProductStatus, ProductReviewStatus, ProductPriceType } from './enums';
+import { ProductType, ProductStatus, ProductReviewStatus, ProductPriceType, ProductStockStatus } from './enums';
 
 /**
  * Product model (internal - snake_case for database)
@@ -21,6 +21,8 @@ export interface Product {
     price?: number;
     currency?: string;
     price_type?: ProductPriceType;
+    stock_status?: ProductStockStatus;
+    stock_quantity?: number | null;
     status: ProductStatus;
     review_status: ProductReviewStatus;
     reviewed_at?: Date | null;
@@ -72,6 +74,8 @@ export interface CreateProductInput {
     price?: number;
     currency?: string;
     price_type?: ProductPriceType;
+    stock_status?: ProductStockStatus;
+    stock_quantity?: number | null;
     status?: ProductStatus;
     version?: string;
     requirements?: string[];
@@ -109,6 +113,8 @@ export interface UpdateProductInput {
     price?: number;
     currency?: string;
     price_type?: ProductPriceType;
+    stock_status?: ProductStockStatus;
+    stock_quantity?: number | null;
     status?: ProductStatus;
     version?: string;
     requirements?: string[];

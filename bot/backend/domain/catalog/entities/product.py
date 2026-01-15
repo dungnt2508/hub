@@ -77,27 +77,29 @@ class Product:
             if not isinstance(tag, str):
                 raise ValueError(f"Product tag at index {i} must be a string")
         
-        # Default availability if not provided
-        if self.availability is None:
-            self.availability = Availability(
-                in_stock=True,
-                status="published"
-            )
-        
         # Validate price if provided
         if self.price is not None and not isinstance(self.price, Price):
             raise ValueError("Product price must be a Price value object")
+        
+        # Validate availability if provided
+        if self.availability is not None and not isinstance(self.availability, Availability):
+            raise ValueError("Product availability must be an Availability value object")
     
-    def is_available(self) -> bool:
+    def is_available(self) -> Optional[bool]:
         """Business rule: Check if product is available for purchase"""
         if not self.availability:
-            return False
-        return self.availability.is_available()
+            return None
+        state = self.availability.availability_state()
+        if state == "unknown":
+            return None
+        return state == "available"
     
-    def is_free(self) -> bool:
+    def is_free(self) -> Optional[bool]:
         """Business rule: Check if product is free"""
         if not self.price:
-            return True
+            return None
+        if not self.price.is_known():
+            return None
         return self.price.is_free()
     
     def has_feature(self, feature: str) -> bool:
@@ -116,8 +118,9 @@ class Product:
     
     def matches_price_range(self, min_price: Optional[float] = None, max_price: Optional[float] = None) -> bool:
         """Business rule: Check if product price is within range"""
-        if not self.price or self.price.is_free():
-            # Free products match any range that includes 0
+        if not self.price or not self.price.is_known():
+            return False
+        if self.price.is_free():
             return min_price is None or min_price <= 0
         
         amount = self.price.amount
@@ -152,13 +155,13 @@ class Product:
     def get_price_display(self) -> str:
         """Get formatted price for display"""
         if not self.price:
-            return "Miễn phí"
+            return "Chưa có dữ liệu giá"
         return self.price.format()
     
     def get_availability_display(self) -> str:
         """Get formatted availability for display"""
         if not self.availability:
-            return "Không xác định"
+            return "Không có dữ liệu tồn kho"
         return self.availability.get_availability_text()
     
     def to_dict(self) -> Dict[str, Any]:
@@ -167,13 +170,16 @@ class Product:
             "id": self.id,
             "title": self.title,
             "description": self.description,
-            "price": self.price.amount if self.price else None,
+            "price": self.price.amount if self.price and self.price.is_known() else None,
             "price_display": self.get_price_display(),
-            "currency": self.price.currency if self.price else None,
-            "price_type": self.price.price_type if self.price else "free",
-            "is_free": self.is_free(),
+            "currency": self.price.currency if self.price and self.price.is_known() else None,
+            "price_type": self.price.price_type if self.price else "unknown",
+            "is_free": self.is_free() if self.price and self.price.is_known() else None,
             "is_available": self.is_available(),
             "availability": self.get_availability_display(),
+            "availability_status": self.availability.listing_status if self.availability else None,
+            "stock_status": self.availability.stock_status if self.availability else None,
+            "stock_quantity": self.availability.quantity if self.availability else None,
             "features": self.features,
             "tags": self.tags,
             "metadata": self.metadata,

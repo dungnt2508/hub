@@ -1,4 +1,4 @@
-import { ProductType, ProductStatus, ProductReviewStatus } from './enums';
+import { ProductType, ProductStatus, ProductReviewStatus, ProductStockStatus, ProductPriceType } from './enums';
 
 /**
  * Product DTO (API response format - camelCase)
@@ -18,6 +18,10 @@ export interface ProductDto {
     contactChannel?: string;
     isFree: boolean;
     price?: number;
+    currency?: string;
+    priceType?: ProductPriceType;
+    stockStatus?: ProductStockStatus;
+    stockQuantity?: number | null;
     status: ProductStatus;
     reviewStatus: ProductReviewStatus;
     reviewedAt?: string | null;
@@ -65,6 +69,10 @@ export interface CreateProductDto {
     contactChannel?: string;
     isFree: boolean;
     price?: number;
+    currency?: string;
+    priceType?: ProductPriceType;
+    stockStatus?: ProductStockStatus;
+    stockQuantity?: number | null;
     version?: string;
     requirements?: string[];
     features?: string[];
@@ -98,6 +106,10 @@ export interface UpdateProductDto {
     contactChannel?: string;
     isFree?: boolean;
     price?: number;
+    currency?: string;
+    priceType?: ProductPriceType;
+    stockStatus?: ProductStockStatus;
+    stockQuantity?: number | null;
     version?: string;
     requirements?: string[];
     features?: string[];

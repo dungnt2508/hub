@@ -41,6 +41,7 @@ services:
       DB_USER: catalog_user
       DB_PASSWORD: catalog_pw
       DATABASE_URL: postgresql://catalog_user:catalog_pw@hub_postgres:5432/catalog_db
+      SEED_ON_START: "true"
     networks:
       - shared_net
     restart: "no"  # Chỉ chạy một lần

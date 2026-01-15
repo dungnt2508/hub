@@ -47,6 +47,15 @@ export default function ProductsPage() {
     }
   };
 
+  const formatPrice = (product: Product) => {
+    if (product.isFree) return 'Miễn phí';
+    if (product.price !== undefined && product.price !== null) {
+      const currency = product.currency || 'VND';
+      return `${product.price.toLocaleString('vi-VN')} ${currency}`;
+    }
+    return 'Chưa có giá';
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#0B0C10] text-gray-900 dark:text-slate-200 font-sans">
       <Navbar />
@@ -133,9 +142,9 @@ export default function ProductsPage() {
                   key={p.id}
                   id={p.id}
                   title={p.title}
-                  description={p.description}
-                  price={p.isFree ? 'Miễn phí' : `${p.price?.toLocaleString('vi-VN')} VNĐ`}
-                  author="Team gsnake"
+                  description={p.description || 'Chưa có mô tả'}
+                  price={formatPrice(p)}
+                  author="Đang cập nhật"
                   downloads={p.downloads}
                   rating={p.rating}
                   tags={p.tags}

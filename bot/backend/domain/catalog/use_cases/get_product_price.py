@@ -90,6 +90,27 @@ class GetProductPriceUseCase(CatalogUseCase):
                     }
                 )
             
+            if not product.price or not product.price.is_known():
+                return DomainResponse(
+                    status=DomainResult.SUCCESS,
+                    message=f"Sản phẩm '{product.title}' chưa có dữ liệu giá.",
+                    data={
+                        "product_id": product.id,
+                        "product_title": product.title,
+                        "price": None,
+                        "price_display": product.get_price_display(),
+                        "currency": None,
+                        "price_type": "unknown",
+                        "is_free": None,
+                        "missing_fields": ["price"],
+                    },
+                    audit={
+                        "intent": request.intent,
+                        "product_id": product.id,
+                        "missing_fields": ["price"],
+                    }
+                )
+            
             # Generate price answer
             answer = self._generate_answer(product)
             
@@ -136,8 +157,9 @@ class GetProductPriceUseCase(CatalogUseCase):
     
     def _generate_answer(self, product: Product) -> str:
         """Generate price answer"""
-        if product.is_free():
+        if product.is_free() is True:
             return f"Sản phẩm '{product.title}' là miễn phí."
-        else:
+        if product.is_free() is False:
             return f"Giá của '{product.title}' là {product.get_price_display()}."
+        return f"Sản phẩm '{product.title}' chưa có dữ liệu giá."
 

@@ -9,7 +9,8 @@ import {
     ProductType,
     ProductStatus,
     ProductReviewStatus,
-    ProductPriceType
+    ProductPriceType,
+    ProductStockStatus
 } from '@gsnake/shared-types';
 import { NotFoundError, AuthorizationError, DomainError, ERROR_CODES } from '../shared/errors';
 import { ProductStateMachine } from '../utils/product-state-machine';
@@ -126,6 +127,8 @@ export class ProductService {
             price_type: data.price_type || (data.is_free ? ProductPriceType.FREE : ProductPriceType.ONETIME),
             is_free: data.is_free ?? true,
             price: data.is_free ? undefined : data.price,
+            stock_status: data.stock_status ?? ProductStockStatus.UNKNOWN,
+            stock_quantity: data.stock_quantity ?? null,
         };
 
         // Business rule: New products always start as PENDING review

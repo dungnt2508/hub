@@ -94,8 +94,10 @@ class ProductService {
       contact_channel: (data as any).contactChannel,
       is_free: data.isFree,
       price: data.price,
-      currency: (data as any).currency,
-      price_type: (data as any).priceType,
+      currency: data.currency,
+      price_type: data.priceType,
+      stock_status: data.stockStatus,
+      stock_quantity: data.stockQuantity,
       version: data.version,
       requirements: data.requirements,
       features: data.features,
@@ -136,8 +138,10 @@ class ProductService {
     if ((data as any).contactChannel !== undefined) backendData.contact_channel = (data as any).contactChannel;
     if (data.isFree !== undefined) backendData.is_free = data.isFree;
     if (data.price !== undefined) backendData.price = data.price;
-    if ((data as any).currency !== undefined) backendData.currency = (data as any).currency;
-    if ((data as any).priceType !== undefined) backendData.price_type = (data as any).priceType;
+    if (data.currency !== undefined) backendData.currency = data.currency;
+    if (data.priceType !== undefined) backendData.price_type = data.priceType;
+    if (data.stockStatus !== undefined) backendData.stock_status = data.stockStatus;
+    if (data.stockQuantity !== undefined) backendData.stock_quantity = data.stockQuantity;
     if (data.version !== undefined) backendData.version = data.version;
     if (data.requirements !== undefined) backendData.requirements = data.requirements;
     if (data.features !== undefined) backendData.features = data.features;

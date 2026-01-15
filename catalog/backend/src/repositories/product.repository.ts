@@ -1,5 +1,5 @@
 import pool from '../config/database';
-import { Product, CreateProductInput, UpdateProductInput, ProductQueryFilters, ProductType, ProductStatus, ProductReviewStatus } from '@gsnake/shared-types';
+import { Product, CreateProductInput, UpdateProductInput, ProductQueryFilters, ProductType, ProductStatus, ProductReviewStatus, ProductStockStatus } from '@gsnake/shared-types';
 import { v4 as uuidv4 } from 'uuid';
 import { mapDbRow, parseNumber, prepareDbData } from '../utils/db-mapper';
 
@@ -127,12 +127,12 @@ export class ProductRepository {
             `INSERT INTO products (
                 id, seller_id, title, description, long_description, type, tags,
                 workflow_file_url, thumbnail_url, preview_image_url, video_url, contact_channel,
-                is_free, price, currency, price_type, status, review_status, version, requirements, features,
+                is_free, price, currency, price_type, stock_status, stock_quantity, status, review_status, version, requirements, features,
                 install_guide, metadata, changelog, license, author_contact, support_url, screenshots, platform_requirements,
                 required_credentials, ownership_declaration, ownership_proof_url, terms_accepted_at,
                 created_at, updated_at, sales_count
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
             ) RETURNING *`,
             [
                 id,
@@ -151,6 +151,8 @@ export class ProductRepository {
                 data.price || null,
                 data.currency || 'VND',
                 data.price_type || 'free',
+                (data as any).stock_status || 'unknown',
+                (data as any).stock_quantity ?? null,
                 data.status,
                 data.review_status,
                 data.version || null,
@@ -244,6 +246,14 @@ export class ProductRepository {
         if (data.price_type !== undefined) {
             updates.push(`price_type = $${paramIndex++}`);
             values.push(data.price_type);
+        }
+        if ((data as any).stock_status !== undefined) {
+            updates.push(`stock_status = $${paramIndex++}`);
+            values.push((data as any).stock_status);
+        }
+        if ((data as any).stock_quantity !== undefined) {
+            updates.push(`stock_quantity = $${paramIndex++}`);
+            values.push((data as any).stock_quantity);
         }
         if (data.version !== undefined) {
             updates.push(`version = $${paramIndex++}`);
@@ -395,7 +405,7 @@ export class ProductRepository {
             [], // No generic JSON fields
             ['tags', 'requirements', 'features', 'screenshots', 'required_credentials'], // JSON array fields
             ['metadata', 'platform_requirements', 'security_scan_result'], // JSON object fields
-            ['downloads', 'rating', 'reviews_count', 'sales_count'] // Number fields (price handled separately)
+            ['downloads', 'rating', 'reviews_count', 'sales_count', 'stock_quantity'] // Number fields (price handled separately)
         );
     }
     
@@ -411,6 +421,8 @@ export class ProductRepository {
             price_type: product.price_type,
             currency: product.currency || 'VND',
             price: product.price ? parseNumber(product.price) : undefined,
+            stock_status: product.stock_status || ProductStockStatus.UNKNOWN,
+            stock_quantity: product.stock_quantity ?? null,
             rating: parseNumber(product.rating, 0),
             downloads: parseNumber(product.downloads, 0),
             reviews_count: parseNumber(product.reviews_count, 0),

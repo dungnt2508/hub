@@ -30,6 +30,10 @@ class CatalogProduct:
     requirements: List[str] = None
     is_free: bool = True
     price: Optional[float] = None
+    currency: Optional[str] = None
+    price_type: Optional[str] = None
+    stock_status: Optional[str] = None
+    stock_quantity: Optional[int] = None
     status: str = "published"
     review_status: str = "approved"
     downloads: int = 0
@@ -195,6 +199,10 @@ class CatalogClient:
                         requirements=product_data.get("requirements", []),
                         is_free=product_data.get("isFree", True),
                         price=product_data.get("price"),
+                        currency=product_data.get("currency"),
+                        price_type=product_data.get("priceType"),
+                        stock_status=product_data.get("stockStatus"),
+                        stock_quantity=product_data.get("stockQuantity"),
                         status=product_data.get("status", "published"),
                         review_status=product_data.get("reviewStatus", "approved"),
                         downloads=product_data.get("downloads", 0),
@@ -329,6 +337,10 @@ class CatalogClient:
                 requirements=product_data.get("requirements", []),
                 is_free=product_data.get("isFree", True),
                 price=product_data.get("price"),
+                currency=product_data.get("currency"),
+                price_type=product_data.get("priceType"),
+                stock_status=product_data.get("stockStatus"),
+                stock_quantity=product_data.get("stockQuantity"),
                 status=product_data.get("status", "published"),
                 review_status=product_data.get("reviewStatus", "approved"),
                 downloads=product_data.get("downloads", 0),

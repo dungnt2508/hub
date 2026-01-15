@@ -139,13 +139,18 @@ class CompareProductsUseCase(CatalogUseCase):
             parts = [f"So sánh '{p1.title}' và '{p2.title}':"]
             
             # Price comparison
-            if p1.price and p2.price:
-                if p1.price.amount < p2.price.amount:
-                    parts.append(f"'{p1.title}' rẻ hơn ({p1.get_price_display()} vs {p2.get_price_display()})")
-                elif p1.price.amount > p2.price.amount:
-                    parts.append(f"'{p2.title}' rẻ hơn ({p2.get_price_display()} vs {p1.get_price_display()})")
-                else:
-                    parts.append(f"Cả hai có cùng giá: {p1.get_price_display()}")
+            if p1.price and p2.price and p1.price.is_known() and p2.price.is_known():
+                if p1.price.is_free() and p2.price.is_free():
+                    parts.append("Cả hai đều miễn phí")
+                elif p1.price.amount is not None and p2.price.amount is not None:
+                    if p1.price.amount < p2.price.amount:
+                        parts.append(f"'{p1.title}' rẻ hơn ({p1.get_price_display()} vs {p2.get_price_display()})")
+                    elif p1.price.amount > p2.price.amount:
+                        parts.append(f"'{p2.title}' rẻ hơn ({p2.get_price_display()} vs {p1.get_price_display()})")
+                    else:
+                        parts.append(f"Cả hai có cùng giá: {p1.get_price_display()}")
+            else:
+                parts.append("Không đủ dữ liệu giá để so sánh")
             
             # Availability
             parts.append(f"'{p1.title}': {p1.get_availability_display()}")

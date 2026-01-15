@@ -29,6 +29,8 @@ export class ProductMapper {
             price: product.price,
             currency: product.currency,
             priceType: product.price_type,
+            stockStatus: (product as any).stock_status,
+            stockQuantity: (product as any).stock_quantity ?? null,
             status: product.status,
             reviewStatus: product.review_status,
             reviewedAt: product.reviewed_at ? product.reviewed_at.toISOString() : null,
