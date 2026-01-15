@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -9,7 +9,7 @@ import Navbar from '@/components/marketplace/Navbar';
 import Footer from '@/components/marketplace/Footer';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { login, getRedirectRoute } = useAuth();
@@ -210,5 +210,17 @@ export default function LoginPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-white dark:bg-[#0B0C10] flex items-center justify-center">
+                <div className="text-gray-600 dark:text-slate-400">Đang tải...</div>
+            </div>
+        }>
+            <LoginForm />
+        </Suspense>
     );
 }

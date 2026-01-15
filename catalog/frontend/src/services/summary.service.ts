@@ -26,9 +26,9 @@ export const summaryService = {
         return response;
     },
 
-    processRss: async (url: string) => {
+    processRss: async (url: string): Promise<{ message?: string }> => {
         // apiClient.post() already unwraps response.data, so response is already the data
-        const response = await apiClient.post('/sources/rss', { url });
+        const response = await apiClient.post<{ message?: string }>('/sources/rss', { url });
         return response;
     },
 
@@ -44,9 +44,9 @@ export const summaryService = {
         return response;
     },
 
-    getSummaries: async (limit: number = 20, offset: number = 0) => {
+    getSummaries: async (limit: number = 20, offset: number = 0): Promise<Article[]> => {
         // apiClient.get() already unwraps response.data, so response is already the data
-        const response = await apiClient.get('/summaries', {
+        const response = await apiClient.get<Article[]>('/summaries', {
             params: { limit, offset },
         });
         return response;

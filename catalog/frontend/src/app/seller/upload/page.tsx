@@ -77,11 +77,11 @@ export default function UploadPage() {
       return;
     }
     // Check if user is approved seller
-    if (user.role !== 'seller' && user.seller_status !== 'approved') {
-      if (user.seller_status === 'pending') {
+    if (user.role !== 'seller' && user.sellerStatus !== 'approved') {
+      if (user.sellerStatus === 'pending') {
         toast.error('Đơn đăng ký seller của bạn đang chờ duyệt. Vui lòng đợi admin phê duyệt.');
         router.push('/seller/apply');
-      } else if (user.seller_status === 'rejected') {
+      } else if (user.sellerStatus === 'rejected') {
         toast.error('Đơn đăng ký seller của bạn đã bị từ chối. Vui lòng kiểm tra và gửi lại đơn.');
         router.push('/seller/apply');
       } else {
@@ -370,14 +370,14 @@ export default function UploadPage() {
         workflowFileUrl: formData.workflow_file_url?.trim() || undefined,
         thumbnailUrl: formData.thumbnail_url?.trim() || undefined,
         previewImageUrl: formData.preview_image_url?.trim() || undefined,
-        video_url: (formData as any).video_url?.trim() || undefined as any,
-        contact_channel: (formData as any).contact_channel?.trim() || undefined,
+        videoUrl: formData.video_url?.trim() || undefined,
+        contactChannel: formData.contact_channel?.trim() || undefined,
         license: formData.license?.trim() || undefined,
         ownershipDeclaration: formData.ownership_declaration,
         ownershipProofUrl: formData.ownership_proof_url?.trim() || undefined,
         screenshots: formData.screenshots || [],
         platformRequirements: formData.platform_requirements,
-        required_credentials: formData.required_credentials,
+        requiredCredentials: formData.required_credentials,
         metadata: {
           ...(formData.type === 'tool' ? { tool: toolMeta } : {}),
           ...(formData.type === 'integration' ? { integration: integrationMeta } : {}),

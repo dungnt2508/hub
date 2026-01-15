@@ -26,13 +26,18 @@ class ProductService {
     if (filters.type) params.append('type', filters.type);
     if (filters.search) params.append('search', filters.search);
     if (filters.tags && filters.tags.length > 0) params.append('tags', filters.tags.join(','));
-    if (filters.seller_id) params.append('seller_id', filters.seller_id);
-    if (filters.price_type) params.append('price_type', filters.price_type);
-    if (filters.is_free !== undefined) params.append('is_free', String(filters.is_free));
+    const sellerId = (filters as any).sellerId || (filters as any).seller_id;
+    if (sellerId) params.append('seller_id', sellerId);
+    const priceType = (filters as any).priceType || (filters as any).price_type;
+    if (priceType) params.append('price_type', priceType);
+    const isFree = (filters as any).isFree !== undefined ? (filters as any).isFree : (filters as any).is_free;
+    if (isFree !== undefined) params.append('is_free', String(isFree));
     if (filters.limit) params.append('limit', filters.limit.toString());
     if (filters.offset) params.append('offset', filters.offset.toString());
-    if (filters.sort_by) params.append('sort_by', filters.sort_by);
-    if (filters.sort_order) params.append('sort_order', filters.sort_order);
+    const sortBy = (filters as any).sortBy || (filters as any).sort_by;
+    if (sortBy) params.append('sort_by', sortBy);
+    const sortOrder = (filters as any).sortOrder || (filters as any).sort_order;
+    if (sortOrder) params.append('sort_order', sortOrder);
 
     // apiClient.get() already unwraps response.data, so response is already the data
     const response = await apiClient.get<ProductsResponse>(`/products?${params.toString()}`);

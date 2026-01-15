@@ -18,6 +18,7 @@ export * from './api-responses';
 export * from './product'; // ProductDto, CreateProductDto
 export * from './auth'; // UserDto, AuthResponseDto
 export * from './article'; // ArticleDto
+export * from './review'; // ReviewDto
 
 // Internal types (snake_case - for backend)
 export * from './user'; // User, CreateUserInput, SellerApplication

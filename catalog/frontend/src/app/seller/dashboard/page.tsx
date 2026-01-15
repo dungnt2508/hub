@@ -25,11 +25,11 @@ export default function SellerDashboard() {
       return;
     }
     // Check if user is approved seller
-    if (user.role !== 'seller' && user.seller_status !== 'approved') {
-      if (user.seller_status === 'pending') {
+    if (user.role !== 'seller' && user.sellerStatus !== 'approved') {
+      if (user.sellerStatus === 'pending') {
         toast.error('Đơn đăng ký seller của bạn đang chờ duyệt. Vui lòng đợi admin phê duyệt.');
         router.push('/seller/apply');
-      } else if (user.seller_status === 'rejected') {
+      } else if (user.sellerStatus === 'rejected') {
         toast.error('Đơn đăng ký seller của bạn đã bị từ chối. Vui lòng kiểm tra và gửi lại đơn.');
         router.push('/seller/apply');
       } else {

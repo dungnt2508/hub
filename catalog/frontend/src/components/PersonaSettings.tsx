@@ -22,8 +22,8 @@ export default function PersonaSettings() {
 
     const fetchPersona = async () => {
         try {
-            const res = await apiClient.get('/personas');
-            const p = res.data?.persona;
+            const res = await apiClient.get<{ persona: Persona }>('/personas');
+            const p = res.persona;
             setPersona(p);
             setTone(p.tone);
             setStyle(p.language_style);

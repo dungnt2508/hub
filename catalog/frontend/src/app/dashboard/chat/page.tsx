@@ -20,7 +20,7 @@ export default function ChatPage() {
 
     // Load message history from localStorage
     useEffect(() => {
-        const saved = localStorage.getItem(`chat-history-${user?.userId}`);
+        const saved = localStorage.getItem(`chat-history-${user?.id}`);
         if (saved) {
             try {
                 setMessages(JSON.parse(saved));
@@ -28,14 +28,14 @@ export default function ChatPage() {
                 console.error('Failed to load chat history:', e);
             }
         }
-    }, [user?.userId]);
+    }, [user?.id]);
 
     // Save messages to localStorage
     useEffect(() => {
-        if (messages.length > 0 && user?.userId) {
-            localStorage.setItem(`chat-history-${user?.userId}`, JSON.stringify(messages));
+        if (messages.length > 0 && user?.id) {
+            localStorage.setItem(`chat-history-${user?.id}`, JSON.stringify(messages));
         }
-    }, [messages, user?.userId]);
+    }, [messages, user?.id]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -208,8 +208,8 @@ export default function ChatPage() {
     const handleClearChat = () => {
         if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện?')) {
             setMessages([]);
-            if (user?.userId) {
-                localStorage.removeItem(`chat-history-${user.userId}`);
+            if (user?.id) {
+                localStorage.removeItem(`chat-history-${user.id}`);
             }
         }
     };

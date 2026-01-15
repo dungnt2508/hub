@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/shared/api/client';
 import Navbar from '@/components/marketplace/Navbar';
 import Footer from '@/components/marketplace/Footer';
-import { useRef } from 'react';
 
-export default function GoogleCallbackPage() {
+function GoogleCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -76,3 +75,14 @@ export default function GoogleCallbackPage() {
   );
 }
 
+export default function GoogleCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white dark:bg-[#0B0C10] flex items-center justify-center">
+        <div className="text-gray-600 dark:text-slate-400">Đang tải...</div>
+      </div>
+    }>
+      <GoogleCallbackContent />
+    </Suspense>
+  );
+}

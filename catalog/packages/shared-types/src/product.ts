@@ -134,8 +134,17 @@ export interface ProductFilters {
     type?: ProductType;
     search?: string;
     tags?: string[];
+    sellerId?: string;
+    priceType?: ProductPriceType;
+    isFree?: boolean;
     limit?: number;
     offset?: number;
+    sortBy?: 'created_at' | 'rating' | 'downloads';
+    sortOrder?: 'asc' | 'desc';
+    // Legacy snake_case support (for backward compatibility)
+    seller_id?: string;
+    price_type?: ProductPriceType;
+    is_free?: boolean;
     sort_by?: 'created_at' | 'rating' | 'downloads';
     sort_order?: 'asc' | 'desc';
 }

@@ -110,7 +110,7 @@ export default function Navbar() {
                                         <div className="h-6 w-px bg-gray-200 dark:bg-slate-800 mx-2"></div>
                                     </>
                                 )}
-                                {(user.role === 'seller' || user.seller_status === 'approved') && (
+                                {(user.role === 'seller' || user.sellerStatus === 'approved') && (
                                     <>
                                         <Link
                                             href="/seller/dashboard"
@@ -128,7 +128,7 @@ export default function Navbar() {
                                     </>
                                 )}
                                 {/* TODO: Re-enable when marketplace feature is fully implemented
-                                {(!user.role || user.role === 'user') && user.seller_status !== 'approved' && (
+                                {(!user.role || user.role === 'user') && user.sellerStatus !== 'approved' && (
                                     <>
                                         <Link
                                             href="/seller/apply"

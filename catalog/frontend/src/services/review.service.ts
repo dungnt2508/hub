@@ -5,7 +5,7 @@ export type Review = ReviewDto;
 
 class ReviewService {
   async getProductReviews(productId: string, limit: number = 50, offset: number = 0): Promise<{ reviews: Review[]; total: number; limit: number; offset: number }> {
-    const resp = await apiClient.get(`/reviews/product/${productId}?limit=${limit}&offset=${offset}`);
+    const resp = await apiClient.get<{ reviews: Review[]; total: number; limit: number; offset: number }>(`/reviews/product/${productId}?limit=${limit}&offset=${offset}`);
     return resp;
   }
 
