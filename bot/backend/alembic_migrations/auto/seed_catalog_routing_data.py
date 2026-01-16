@@ -62,10 +62,11 @@ async def seed_catalog_routing_data():
         logger.info("✅ Successfully seeded Catalog domain routing data")
         print("\n✅ Đã tạo dữ liệu routing cho Catalog domain thành công!")
         print("\n📝 Dữ liệu đã tạo:")
-        print("   - Pattern rules: 2 rules (Catalog queries)")
-        print("   - Keyword hints: 1 hint (Catalog keywords)")
-        print("   - Routing rules: 2 rules (Catalog intents)")
-        print("   - Prompt templates: 2 templates (Catalog prompts)")
+        print("   - Pattern rules: KNOWLEDGE (search, price, detail, availability, variant, comparison)")
+        print("   - Pattern rules: OPERATION (cart, checkout, order tracking, support)")
+        print("   - Keyword hints: Catalog keywords (mở rộng)")
+        print("   - Routing rules: Catalog intents (mở rộng)")
+        print("   - Prompt templates: Catalog prompts (mở rộng)")
         
     except Exception as e:
         logger.error(f"Error seeding Catalog routing data: {e}", exc_info=True)
@@ -173,6 +174,102 @@ async def create_catalog_pattern_rules(created_by: UUID):
             "priority": 60,
             "description": "So sánh hai hoặc nhiều sản phẩm",
         },
+
+        # =========================
+        # CART OPERATIONS
+        # =========================
+        {
+            "rule_name": "Catalog - Thêm vào giỏ hàng",
+            "pattern_regex": r"(thêm|cho vào|bỏ vào|add to cart|thêm giỏ)\s*(giỏ|cart)?",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "add_to_cart",
+            "intent_type": "OPERATION",
+            "priority": 88,
+            "description": "Thêm sản phẩm vào giỏ hàng",
+        },
+        {
+            "rule_name": "Catalog - Xem giỏ hàng",
+            "pattern_regex": r"(giỏ hàng|cart|xem giỏ|kiểm tra giỏ)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "view_cart",
+            "intent_type": "OPERATION",
+            "priority": 85,
+            "description": "Xem nội dung giỏ hàng",
+        },
+
+        # =========================
+        # CHECKOUT
+        # =========================
+        {
+            "rule_name": "Catalog - Thanh toán",
+            "pattern_regex": r"(thanh toán|checkout|mua|đặt hàng|order)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "checkout",
+            "intent_type": "OPERATION",
+            "priority": 92,
+            "description": "Bắt đầu quy trình thanh toán",
+        },
+        {
+            "rule_name": "Catalog - Nhập thông tin thanh toán",
+            "pattern_regex": r"(thông tin|địa chỉ|số điện thoại|email|giao hàng)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "collect_checkout_info",
+            "intent_type": "OPERATION",
+            "priority": 90,
+            "description": "Thu thập thông tin khách hàng cho checkout",
+        },
+
+        # =========================
+        # ORDER TRACKING
+        # =========================
+        {
+            "rule_name": "Catalog - Theo dõi đơn hàng",
+            "pattern_regex": r"(theo dõi|track|tra cứu|kiểm tra|tình trạng)\s*(đơn hàng|order)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "track_order",
+            "intent_type": "OPERATION",
+            "priority": 87,
+            "description": "Theo dõi tình trạng đơn hàng",
+        },
+        {
+            "rule_name": "Catalog - Hỏi đơn hàng",
+            "pattern_regex": r"(đơn hàng|order|đơn của tôi|đơn mua)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "query_order",
+            "intent_type": "OPERATION",
+            "priority": 82,
+            "description": "Hỏi thông tin về đơn hàng",
+        },
+
+        # =========================
+        # SUPPORT
+        # =========================
+        {
+            "rule_name": "Catalog - Cần hỗ trợ",
+            "pattern_regex": r"(hỗ trợ|support|giúp đỡ|tư vấn|live chat)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "escalate_support",
+            "intent_type": "OPERATION",
+            "priority": 75,
+            "description": "Yêu cầu hỗ trợ hoặc chuyển sang live chat",
+        },
+        {
+            "rule_name": "Catalog - Hỗ trợ sau mua",
+            "pattern_regex": r"(sau mua|bảo hành|đổi trả|hoàn tiền|khiếu nại)",
+            "pattern_flags": "IGNORECASE",
+            "target_domain": "catalog",
+            "target_intent": "post_purchase_support",
+            "intent_type": "OPERATION",
+            "priority": 73,
+            "description": "Hỗ trợ sau khi mua hàng",
+        },
     ]
 
     created_count = 0
@@ -255,6 +352,34 @@ async def create_catalog_keyword_hints(created_by: UUID):
                 "so sánh": 0.75,
                 "so với": 0.75,
                 "khác gì": 0.75,
+
+                # CART
+                "giỏ hàng": 0.9,
+                "cart": 0.9,
+                "thêm giỏ": 0.85,
+                "add to cart": 0.85,
+
+                # CHECKOUT
+                "thanh toán": 0.95,
+                "checkout": 0.95,
+                "đặt hàng": 0.9,
+                "order": 0.9,
+                "mua": 0.85,
+                "giao hàng": 0.85,
+                "địa chỉ": 0.8,
+
+                # ORDER TRACKING
+                "theo dõi": 0.9,
+                "track": 0.9,
+                "tra cứu đơn": 0.85,
+                "tình trạng đơn": 0.85,
+
+                # SUPPORT
+                "hỗ trợ": 0.85,
+                "support": 0.85,
+                "tư vấn": 0.8,
+                "bảo hành": 0.8,
+                "đổi trả": 0.8,
             },
             "description": "Keyword hints chuẩn hóa cho domain Catalog, tối ưu routing intent truy vấn sản phẩm",
         },
@@ -348,6 +473,78 @@ async def create_catalog_routing_rules(created_by: UUID):
             "target_domain": "catalog",
             "priority": 70,
             "description": "Routing intent so sánh sản phẩm",
+        },
+
+        # =========================
+        # CART OPERATIONS
+        # =========================
+        {
+            "rule_name": "Catalog - Thêm vào giỏ hàng",
+            "intent_pattern": {"intent": "add_to_cart", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 88,
+            "description": "Routing intent thêm sản phẩm vào giỏ hàng",
+        },
+        {
+            "rule_name": "Catalog - Xem giỏ hàng",
+            "intent_pattern": {"intent": "view_cart", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 85,
+            "description": "Routing intent xem giỏ hàng",
+        },
+
+        # =========================
+        # CHECKOUT
+        # =========================
+        {
+            "rule_name": "Catalog - Thanh toán",
+            "intent_pattern": {"intent": "checkout", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 92,
+            "description": "Routing intent thanh toán",
+        },
+        {
+            "rule_name": "Catalog - Thu thập thông tin checkout",
+            "intent_pattern": {"intent": "collect_checkout_info", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 90,
+            "description": "Routing intent thu thập thông tin khách hàng",
+        },
+
+        # =========================
+        # ORDER TRACKING
+        # =========================
+        {
+            "rule_name": "Catalog - Theo dõi đơn hàng",
+            "intent_pattern": {"intent": "track_order", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 87,
+            "description": "Routing intent theo dõi đơn hàng",
+        },
+        {
+            "rule_name": "Catalog - Tra cứu đơn hàng",
+            "intent_pattern": {"intent": "query_order", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 82,
+            "description": "Routing intent tra cứu đơn hàng",
+        },
+
+        # =========================
+        # SUPPORT
+        # =========================
+        {
+            "rule_name": "Catalog - Yêu cầu hỗ trợ",
+            "intent_pattern": {"intent": "escalate_support", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 75,
+            "description": "Routing intent yêu cầu hỗ trợ",
+        },
+        {
+            "rule_name": "Catalog - Hỗ trợ sau mua",
+            "intent_pattern": {"intent": "post_purchase_support", "match_type": "exact"},
+            "target_domain": "catalog",
+            "priority": 73,
+            "description": "Routing intent hỗ trợ sau mua hàng",
         },
 
         # =========================
@@ -501,6 +698,136 @@ async def create_catalog_prompt_templates(created_by: UUID):
             },
             "description": "System prompt cho so sánh sản phẩm",
         },
+
+        # =========================
+        # CART
+        # =========================
+        {
+            "rule_name": "Catalog - Thêm vào giỏ hàng (System)",
+            "template_name": "catalog_add_to_cart_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog cart engine. "
+                "Nhiệm vụ: thêm sản phẩm vào giỏ hàng. "
+                "Xác nhận sản phẩm, số lượng, biến thể (nếu có). "
+                "Thông báo rõ ràng khi thêm thành công. "
+                "Nếu thiếu thông tin, hỏi rõ ràng. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["product_id"],
+                "optional": ["quantity", "variant_id"]
+            },
+            "description": "System prompt cho thêm sản phẩm vào giỏ hàng",
+        },
+
+        # =========================
+        # CHECKOUT
+        # =========================
+        {
+            "rule_name": "Catalog - Thanh toán (System)",
+            "template_name": "catalog_checkout_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog checkout engine. "
+                "Nhiệm vụ: hướng dẫn thanh toán. "
+                "Thu thập thông tin: địa chỉ giao hàng, số điện thoại, phương thức thanh toán. "
+                "Xác nhận đơn hàng trước khi đặt. "
+                "Không tự động đặt hàng. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["cart_id"],
+                "optional": ["shipping_address", "phone", "payment_method"]
+            },
+            "description": "System prompt cho quy trình thanh toán",
+        },
+        {
+            "rule_name": "Catalog - Thu thập thông tin checkout (System)",
+            "template_name": "catalog_collect_checkout_info_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog checkout info collector. "
+                "Nhiệm vụ: thu thập thông tin khách hàng cho checkout. "
+                "Hỏi từng thông tin một cách rõ ràng: tên, địa chỉ, số điện thoại, email. "
+                "Xác nhận lại thông tin trước khi tiếp tục. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": [],
+                "optional": ["name", "address", "phone", "email"]
+            },
+            "description": "System prompt cho thu thập thông tin checkout",
+        },
+
+        # =========================
+        # ORDER TRACKING
+        # =========================
+        {
+            "rule_name": "Catalog - Theo dõi đơn hàng (System)",
+            "template_name": "catalog_track_order_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog order tracking engine. "
+                "Nhiệm vụ: cung cấp thông tin tình trạng đơn hàng. "
+                "Yêu cầu: order_id hoặc thông tin khách hàng. "
+                "Trả về: trạng thái, ngày giao hàng dự kiến, tracking number (nếu có). "
+                "Nếu không tìm thấy, thông báo rõ. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["order_id"],
+                "optional": ["customer_email", "phone"]
+            },
+            "description": "System prompt cho theo dõi đơn hàng",
+        },
+
+        # =========================
+        # SUPPORT
+        # =========================
+        {
+            "rule_name": "Catalog - Yêu cầu hỗ trợ (System)",
+            "template_name": "catalog_escalate_support_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog support escalation engine. "
+                "Nhiệm vụ: chuyển khách hàng sang hỗ trợ trực tiếp. "
+                "Thu thập thông tin vấn đề ngắn gọn. "
+                "Thông báo sẽ chuyển sang live chat hoặc hỗ trợ viên. "
+                "Không tự giải quyết vấn đề phức tạp. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": [],
+                "optional": ["issue_description", "order_id"]
+            },
+            "description": "System prompt cho yêu cầu hỗ trợ",
+        },
+        {
+            "rule_name": "Catalog - Hỗ trợ sau mua (System)",
+            "template_name": "catalog_post_purchase_support_system",
+            "template_type": "system",
+            "domain": "catalog",
+            "template_text": (
+                "Bạn là catalog post-purchase support engine. "
+                "Nhiệm vụ: hỗ trợ khách hàng sau khi mua hàng. "
+                "Xử lý: bảo hành, đổi trả, hoàn tiền, khiếu nại. "
+                "Yêu cầu: order_id và mô tả vấn đề. "
+                "Hướng dẫn quy trình rõ ràng. "
+                "Nếu phức tạp, chuyển sang hỗ trợ viên. "
+                "Ngôn ngữ: tiếng Việt."
+            ),
+            "variables": {
+                "required": ["order_id"],
+                "optional": ["issue_type", "issue_description"]
+            },
+            "description": "System prompt cho hỗ trợ sau mua hàng",
+        },
     ]
 
     created_count = 0
@@ -529,20 +856,16 @@ async def clean_catalog_routing_data():
         await database_client.connect()
         logger.info("Connected to database")
         
-        seeded_rules = {
-            "Catalog - Tìm kiếm sản phẩm",
-            "Catalog - Xem giá sản phẩm",
-        }
+        seeded_rules = set()
+        # Pattern rules sẽ được xác định bằng prefix "Catalog -"
         
-        seeded_hints = {"Catalog Domain - Từ khóa tiếng Việt"}
-        seeded_routing = {
-            "Catalog - Tìm kiếm sản phẩm",
-            "Catalog - Tra cứu giá",
-        }
-        seeded_templates = {
-            "Catalog - Tìm kiếm sản phẩm System Prompt",
-            "Catalog - Tra cứu giá System Prompt",
-        }
+        seeded_hints = {"Catalog Domain - Vietnamese Keywords (Normalized)"}
+        
+        seeded_routing = set()
+        # Routing rules sẽ được xác định bằng prefix "Catalog -"
+        
+        seeded_templates = set()
+        # Prompt templates sẽ được xác định bằng prefix "Catalog -"
         
         deleted_counts = {
             "pattern_rules": 0,
@@ -551,11 +874,11 @@ async def clean_catalog_routing_data():
             "prompt_templates": 0,
         }
         
-        # Delete pattern rules
+        # Delete pattern rules (all rules starting with "Catalog -")
         try:
             rules = await admin_config_service.list_pattern_rules(limit=1000, offset=0)
             for rule in rules.get("items", []):
-                if hasattr(rule, 'rule_name') and rule.rule_name in seeded_rules:
+                if hasattr(rule, 'rule_name') and rule.rule_name.startswith("Catalog -"):
                     try:
                         await admin_config_service.delete_pattern_rule(rule.id)
                         deleted_counts["pattern_rules"] += 1
@@ -579,11 +902,11 @@ async def clean_catalog_routing_data():
         except Exception as e:
             logger.warning(f"Error deleting keyword hints: {e}")
         
-        # Delete routing rules
+        # Delete routing rules (all rules starting with "Catalog -")
         try:
             rules = await admin_config_service.list_routing_rules(limit=1000, offset=0)
             for rule in rules.get("items", []):
-                if hasattr(rule, 'rule_name') and rule.rule_name in seeded_routing:
+                if hasattr(rule, 'rule_name') and rule.rule_name.startswith("Catalog -"):
                     try:
                         await admin_config_service.delete_routing_rule(rule.id)
                         deleted_counts["routing_rules"] += 1
@@ -593,11 +916,11 @@ async def clean_catalog_routing_data():
         except Exception as e:
             logger.warning(f"Error deleting routing rules: {e}")
         
-        # Delete templates
+        # Delete templates (all templates starting with "Catalog -")
         try:
             templates = await admin_config_service.list_prompt_templates(limit=1000, offset=0)
             for template in templates.get("items", []):
-                if hasattr(template, 'rule_name') and template.rule_name in seeded_templates:
+                if hasattr(template, 'rule_name') and template.rule_name.startswith("Catalog -"):
                     try:
                         await admin_config_service.delete_prompt_template(template.id)
                         deleted_counts["prompt_templates"] += 1
