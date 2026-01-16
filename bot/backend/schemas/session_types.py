@@ -5,6 +5,8 @@ from typing import Optional, Literal, Dict, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from ..router.conversation_state_machine import ConversationState
+
 
 @dataclass
 class SessionState:
@@ -20,6 +22,7 @@ class SessionState:
     slots_memory: Dict[str, Any] = field(default_factory=dict)
     retry_count: int = 0
     escalation_flag: bool = False
+    conversation_state: ConversationState = ConversationState.IDLE  # F3.2: State machine
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     

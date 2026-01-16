@@ -94,6 +94,7 @@ export interface PromptTemplate {
 export interface TestSandboxRequest {
   message: string;
   tenant_id?: string;
+  session_id?: string;  // For multi-turn conversation testing
   user_context?: Record<string, any>;
 }
 
@@ -105,6 +106,8 @@ export interface TestSandboxResponse {
     confidence: number;
     source: string;
     status: string;
+    message?: string;
+    options?: string[];  // For UNKNOWN disambiguation
   };
   trace: {
     trace_id: string;
@@ -122,6 +125,32 @@ export interface TestSandboxResponse {
     source: string;
     score?: number;
   }>;
+  session_state?: {
+    session_id: string;
+    user_id: string;
+    active_domain?: string;
+    last_domain?: string;
+    last_intent?: string;
+    last_intent_type?: string;
+    pending_intent?: string;
+    missing_slots?: string[];
+    slots_memory?: Record<string, any>;
+    retry_count?: number;
+    escalation_flag?: boolean;
+    conversation_state?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
+  domain_response?: {
+    status: string;
+    message?: string;
+    data?: any;
+    missing_slots?: string[];
+    next_action?: string;
+    next_action_params?: Record<string, any>;
+    error_code?: string;
+  };
+  session_id?: string;  // Session ID for next turn
 }
 
 export interface AuditLog {

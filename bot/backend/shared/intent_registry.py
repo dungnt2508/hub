@@ -3,7 +3,7 @@ Intent Registry Loader
 """
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
 
@@ -17,6 +17,7 @@ class IntentInfo:
     optional_slots: list[str]
     source_allowed: list[str]
     description: str
+    use_case_key: Optional[str] = None  # For domain-specific use case mapping
 
 
 class IntentRegistry:
@@ -54,6 +55,7 @@ class IntentRegistry:
                 optional_slots=intent_data.get("optional_slots", []),
                 source_allowed=intent_data.get("source_allowed", []),
                 description=intent_data.get("description", ""),
+                use_case_key=intent_data.get("use_case_key"),
             )
             self.intents[intent_info.intent] = intent_info
     
@@ -79,6 +81,21 @@ class IntentRegistry:
         if not intent_info:
             return False
         return source in intent_info.source_allowed
+    
+    def get_use_case_key(self, intent_name: str) -> Optional[str]:
+        """
+        Get use case key for intent (domain-specific mapping).
+        
+        Args:
+            intent_name: Intent name
+            
+        Returns:
+            Use case key if found, None otherwise
+        """
+        intent_info = self.get_intent(intent_name)
+        if not intent_info:
+            return None
+        return intent_info.use_case_key
 
 
 # Global registry instance

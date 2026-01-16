@@ -41,6 +41,8 @@ class RouterConfig:
         # ==================== SESSION ====================
         self.SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", "2592000"))  # 30 days
         self.SESSION_CACHE_TTL = int(os.getenv("SESSION_CACHE_TTL", "300"))
+        self.CONVERSATION_TIMEOUT_MINUTES = int(os.getenv("CONVERSATION_TIMEOUT_MINUTES", "10"))  # 10 minutes (F4.2)
+        self.ESCALATION_RETRY_THRESHOLD = int(os.getenv("ESCALATION_RETRY_THRESHOLD", "3"))  # Escalate after 3 retries (F4.3)
         
         # ==================== ROUTER ====================
         self.MAX_MESSAGE_LENGTH = int(os.getenv("MAX_MESSAGE_LENGTH", "5000"))

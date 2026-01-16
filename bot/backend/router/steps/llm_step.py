@@ -88,6 +88,21 @@ class LLMClassifierStep:
                 raise LLMError(f"LLM response parsing failed: {e}") from e
             
             if result.get("classified"):
+                # Apply session context boost (F3.3)
+                if session_state.last_domain and result.get("domain") == session_state.last_domain:
+                    # Boost confidence by 0.05 (5%) if matches last_domain
+                    original_confidence = result.get("confidence", 0.0)
+                    boosted_confidence = min(1.0, original_confidence + 0.05)
+                    result["confidence"] = boosted_confidence
+                    logger.debug(
+                        "Applied session context boost to LLM result",
+                        extra={
+                            "last_domain": session_state.last_domain,
+                            "original_confidence": original_confidence,
+                            "boosted_confidence": boosted_confidence,
+                        }
+                    )
+                
                 logger.info(
                     "LLM classification successful",
                     extra={

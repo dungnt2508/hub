@@ -285,30 +285,91 @@ async def test_sandbox(
     request: TestSandboxRequest,
     current_user: dict = Depends(require_any_role),
 ):
-    """Test routing with trace"""
+    """
+    Test routing with trace - Full flow testing (router + domain)
+    
+    Supports multi-turn conversation testing with session_id.
+    Returns session state and domain response for complete flow testing.
+    """
     try:
         from ..router.orchestrator import RouterOrchestrator
         from ..schemas.router_types import RouterRequest
+        from ..interface.api_handler import APIHandler
+        from ..infrastructure.session_repository import RedisSessionRepository
         
-        # Create router request
-        router_request = RouterRequest(
+        # Use APIHandler to test full flow (router + domain dispatcher)
+        api_handler = APIHandler()
+        
+        # Call handle_request (full flow)
+        user_id = str(current_user["id"])
+        
+        # Get tenant_id: from request, or current_user, or use default test tenant
+        tenant_id = None
+        if request.tenant_id:
+            tenant_id = str(request.tenant_id)
+        elif current_user.get("tenant_id"):
+            tenant_id = str(current_user["tenant_id"])
+        else:
+            # Use default test tenant_id for admin sandbox testing
+            # This is a well-known test tenant UUID that should exist in dev/test environments
+            tenant_id = "00000000-0000-0000-0000-000000000001"  # Default test tenant
+            logger.info(
+                "Using default test tenant_id for admin sandbox",
+                extra={"tenant_id": tenant_id, "user_id": user_id}
+            )
+        
+        metadata = {
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "channel": "internal",  # Mark as internal/admin channel
+            **(request.user_context or {}),
+        }
+        
+        response = await api_handler.handle_request(
             raw_message=request.message,
-            user_id=str(current_user["id"]),  # Use admin user ID
-            session_id=None,
-            metadata={
-                "tenant_id": str(request.tenant_id) if request.tenant_id else None,
-                **(request.user_context or {}),
-            },
+            user_id=user_id,
+            session_id=request.session_id,
+            metadata=metadata
         )
         
-        # Run router
-        orchestrator = RouterOrchestrator()
-        router_response = await orchestrator.route(router_request)
+        # Extract session state if session_id is available
+        session_state = None
+        session_id = response.get("session_id") or request.session_id
+        if session_id:
+            try:
+                session_repo = RedisSessionRepository()
+                session_state_obj = await session_repo.get(session_id)
+                if session_state_obj:
+                    from dataclasses import asdict
+                    session_state = asdict(session_state_obj)
+                    # Convert ConversationState enum to string
+                    if "conversation_state" in session_state:
+                        session_state["conversation_state"] = session_state["conversation_state"].value if hasattr(session_state["conversation_state"], "value") else str(session_state["conversation_state"])
+            except Exception as e:
+                logger.warning(f"Failed to load session state: {e}")
         
-        # Get configs used (from trace)
+        # Extract routing info from response
+        routing_result = {
+            "domain": response.get("domain"),
+            "intent": response.get("intent"),
+            "intent_type": response.get("intent_type"),
+            "confidence": response.get("confidence"),
+            "source": response.get("source", "UNKNOWN"),
+            "status": response.get("status", "UNKNOWN"),
+            "message": response.get("message"),
+            "options": response.get("options"),  # For UNKNOWN disambiguation
+        }
+        
+        # Extract trace from response (if available)
+        trace = {
+            "trace_id": response.get("trace_id") or response.get("traceId") or "unknown",
+            "spans": response.get("trace", {}).get("spans", []) if isinstance(response.get("trace"), dict) else [],
+        }
+        
+        # Get configs used (from trace spans)
         configs_used = []
-        if router_response.trace:
-            for span in router_response.trace.spans:
+        if trace.get("spans"):
+            for span in trace["spans"]:
                 if span.get("decision_source"):
                     configs_used.append({
                         "step": span.get("step"),
@@ -316,30 +377,26 @@ async def test_sandbox(
                         "score": span.get("score"),
                     })
         
+        # Extract domain response info
+        domain_response = None
+        if response.get("status") in ["SUCCESS", "NEED_MORE_INFO", "ERROR"]:
+            domain_response = {
+                "status": response.get("status"),
+                "message": response.get("message"),
+                "data": response.get("data"),
+                "missing_slots": response.get("missing_slots"),
+                "next_action": response.get("next_action"),
+                "next_action_params": response.get("next_action_params"),
+                "error_code": response.get("error_code"),
+            }
+        
         return TestSandboxResponse(
-            routing_result={
-                "domain": router_response.domain,
-                "intent": router_response.intent,
-                "intent_type": router_response.intent_type,
-                "confidence": router_response.confidence,
-                "source": router_response.source,
-                "status": router_response.status,
-            },
-            trace={
-                "trace_id": router_response.trace_id,
-                "spans": [
-                    {
-                        "step": span.get("step"),
-                        "input": span.get("input"),
-                        "output": span.get("output"),
-                        "duration_ms": span.get("duration_ms"),
-                        "score": span.get("score"),
-                        "decision_source": span.get("decision_source"),
-                    }
-                    for span in (router_response.trace.spans if router_response.trace else [])
-                ],
-            },
+            routing_result=routing_result,
+            trace=trace,
             configs_used=configs_used,
+            session_state=session_state,
+            domain_response=domain_response,
+            session_id=session_id,
         )
     except Exception as e:
         logger.error(f"Error in test sandbox: {e}", exc_info=True)

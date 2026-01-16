@@ -11,6 +11,7 @@ from ..schemas import DomainRequest, DomainResponse, DomainResult, RouterRespons
 from ..domain.hr.entry_handler import HREntryHandler
 from ..domain.catalog.entry_handler import CatalogEntryHandler
 from ..domain.dba.entry_handler import DBAEntryHandler
+from ..infrastructure.session_repository import RedisSessionRepository
 from ..shared.logger import logger
 from ..shared.exceptions import DomainError, InvalidInputError
 
@@ -32,6 +33,7 @@ class DomainDispatcher:
             "catalog": CatalogEntryHandler(),
             "dba": DBAEntryHandler(),
         }
+        self.session_repository = RedisSessionRepository()
         logger.info(f"DomainDispatcher initialized with {len(self.handlers)} handlers")
     
     async def dispatch(
@@ -93,12 +95,19 @@ class DomainDispatcher:
                 )
                 raise DomainError(f"Unknown domain: {domain}")
             
+            # Merge session slots with router slots (F2.2)
+            merged_slots = await self._merge_session_slots(
+                router_response.session_id,
+                router_response.slots or {},
+                user_id
+            )
+            
             # Create domain request from router response
             domain_request = DomainRequest(
                 domain=domain,
                 intent=intent,
                 intent_type=router_response.intent_type or "OPERATION",
-                slots=router_response.slots or {},
+                slots=merged_slots,
                 user_context={
                     "user_id": user_id,
                     "tenant_id": metadata.get("tenant_id") if metadata else None,
@@ -208,6 +217,12 @@ class DomainDispatcher:
         if domain_response.status == DomainResult.NEED_MORE_INFO:
             response["missing_slots"] = domain_response.missing_slots
         
+        # Add next_action and next_action_params (F2.3)
+        if domain_response.next_action:
+            response["next_action"] = domain_response.next_action
+        if domain_response.next_action_params:
+            response["next_action_params"] = domain_response.next_action_params
+        
         # Add error details if error
         if domain_response.status in [
             DomainResult.ERROR,
@@ -224,6 +239,73 @@ class DomainDispatcher:
             response["audit"] = domain_response.audit
         
         return response
+    
+    async def _merge_session_slots(
+        self,
+        session_id: Optional[str],
+        router_slots: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Merge session slots with router slots.
+        
+        This implements F2.2: Domain Dispatcher Merge Session Slots.
+        Session slots take precedence (they're from previous turns).
+        
+        Args:
+            session_id: Session ID from router response
+            router_slots: Slots extracted by router
+            user_id: User ID for validation
+            
+        Returns:
+            Merged slots dict
+        """
+        if not session_id:
+            # No session, return router slots only
+            return router_slots.copy()
+        
+        try:
+            # Load session
+            session_state = await self.session_repository.get(session_id)
+            if not session_state:
+                logger.debug(
+                    f"Session not found for slot merge: {session_id}",
+                    extra={"user_id": user_id}
+                )
+                return router_slots.copy()
+            
+            # Validate user_id matches
+            if session_state.user_id != user_id:
+                logger.warning(
+                    f"User ID mismatch in session for slot merge: expected {user_id}, got {session_state.user_id}",
+                    extra={"session_id": session_id}
+                )
+                return router_slots.copy()
+            
+            # Merge: session slots first (from previous turns), then router slots (new)
+            merged = session_state.slots_memory.copy()
+            merged.update(router_slots)  # Router slots override session slots if conflict
+            
+            logger.debug(
+                "Slots merged from session and router",
+                extra={
+                    "session_id": session_id,
+                    "session_slots_count": len(session_state.slots_memory),
+                    "router_slots_count": len(router_slots),
+                    "merged_slots_count": len(merged),
+                }
+            )
+            
+            return merged
+            
+        except Exception as e:
+            logger.error(
+                f"Failed to merge session slots: {e}",
+                extra={"session_id": session_id, "user_id": user_id},
+                exc_info=True
+            )
+            # Return router slots only on error
+            return router_slots.copy()
 
 
 # Global dispatcher instance

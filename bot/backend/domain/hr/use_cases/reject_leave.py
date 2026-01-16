@@ -51,6 +51,11 @@ class RejectLeaveUseCase(BaseUseCase):
                 status=DomainResult.NEED_MORE_INFO,
                 missing_slots=missing_slots,
                 message=f"Vui lòng cung cấp: {', '.join(missing_slots)}",
+                next_action="ASK_SLOT",
+                next_action_params={
+                    "slot_name": missing_slots[0],
+                    "all_missing": missing_slots,
+                },
             )
         
         user_id = request.user_context.get("user_id")

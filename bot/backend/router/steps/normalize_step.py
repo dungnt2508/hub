@@ -79,13 +79,17 @@ class NormalizeStep:
         # Step 6: Extract and normalize dates
         dates = self._extract_dates(normalized_lower)
         
-        # Step 7: Calculate noise level
+        # Step 7: Extract numbers
+        numbers = self._extract_numbers(normalized_lower)
+        
+        # Step 8: Calculate noise level
         noise_level = self._calculate_noise_level(raw_message, normalized_lower)
         
         return NormalizedInput(
             normalized_message=normalized_lower,
             normalized_entities={
                 "dates": dates,
+                "numbers": numbers,
             },
             language="vi",
             noise_level=noise_level,
@@ -140,6 +144,28 @@ class NormalizeStep:
         # TODO: Add more date patterns
         
         return dates
+    
+    def _extract_numbers(self, text: str) -> list[dict]:
+        """Extract numbers from text"""
+        numbers = []
+        
+        # Pattern: digits
+        import re
+        number_pattern = r'\d+'
+        matches = re.finditer(number_pattern, text)
+        
+        for match in matches:
+            try:
+                value = int(match.group())
+                numbers.append({
+                    "raw": match.group(),
+                    "value": value,
+                    "unit": None,
+                })
+            except ValueError:
+                pass
+        
+        return numbers
     
     def _calculate_noise_level(self, original: str, normalized: str) -> str:
         """Calculate noise level"""

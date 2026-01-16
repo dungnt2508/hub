@@ -49,6 +49,8 @@ class DomainResponse:
     audit: Optional[Dict[str, Any]] = None
     error_code: Optional[str] = None
     error_details: Optional[Dict[str, Any]] = None
+    next_action: Optional[Literal["ASK_SLOT", "CONFIRM", "CONTINUE", "END"]] = None
+    next_action_params: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         """Validate domain response"""
@@ -56,4 +58,14 @@ class DomainResponse:
             raise ValueError("data is required when status is SUCCESS")
         if self.status == DomainResult.NEED_MORE_INFO and not self.missing_slots:
             raise ValueError("missing_slots is required when status is NEED_MORE_INFO")
+        # Auto-set next_action based on status if not provided
+        if self.next_action is None:
+            if self.status == DomainResult.NEED_MORE_INFO:
+                self.next_action = "ASK_SLOT"
+            elif self.status == DomainResult.SUCCESS:
+                self.next_action = "END"
+            elif self.status in [DomainResult.REJECT_POLICY, DomainResult.REJECT_PERMISSION]:
+                self.next_action = "END"
+            else:
+                self.next_action = "END"
 

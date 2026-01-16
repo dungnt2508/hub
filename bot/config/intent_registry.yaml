@@ -37,6 +37,71 @@ intents:
     description: "Query leave policy information"
 
   # Catalog Domain - KNOWLEDGE Intents
+  # Router intents (from pattern rules) → Use case keys
+  - intent: search_products
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_type, feature, tag]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Search for products/workflows in catalog"
+    use_case_key: catalog.search
+    
+  - intent: search_by_category
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_type, feature, tag]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Search products by category"
+    use_case_key: catalog.search
+    
+  - intent: query_product_detail
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Get information about specific product"
+    use_case_key: catalog.info
+    
+  - intent: query_variant
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [question, query, product_id]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Query product variant information"
+    use_case_key: catalog.info
+    
+  - intent: query_price
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [product_id, product_name]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Query product price"
+    use_case_key: catalog.price
+    
+  - intent: check_availability
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [product_id, product_name]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Check product availability"
+    use_case_key: catalog.availability
+    
+  - intent: compare_products
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [product_names, product_ids]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Compare multiple products"
+    use_case_key: catalog.compare
+    
+  # Direct use case keys (for backward compatibility)
   - intent: catalog.search
     domain: catalog
     intent_type: KNOWLEDGE
@@ -44,6 +109,7 @@ intents:
     optional_slots: [question, query, product_type, feature, tag]
     source_allowed: [PATTERN, EMBEDDING, LLM]
     description: "Search for products/workflows in catalog"
+    use_case_key: catalog.search
     
   - intent: catalog.recommend
     domain: catalog
@@ -52,6 +118,7 @@ intents:
     optional_slots: [question, query, product_type, feature, tag]
     source_allowed: [EMBEDDING, LLM]
     description: "Get product recommendations based on needs"
+    use_case_key: catalog.search  # Recommend uses search use case
     
   - intent: catalog.info
     domain: catalog
@@ -60,6 +127,89 @@ intents:
     optional_slots: [question, query, product_id]
     source_allowed: [PATTERN, EMBEDDING, LLM]
     description: "Get information about specific product"
+    use_case_key: catalog.info
+    
+  - intent: catalog.price
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [product_id, product_name]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Get product price"
+    use_case_key: catalog.price
+    
+  - intent: catalog.availability
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [product_id, product_name]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Check product availability"
+    use_case_key: catalog.availability
+    
+  - intent: catalog.compare
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [product_names, product_ids]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Compare multiple products"
+    use_case_key: catalog.compare
+
+  # Catalog Domain - OPERATION Intents (E-commerce Flow)
+  - intent: add_to_cart
+    domain: catalog
+    intent_type: OPERATION
+    required_slots: [product_id, quantity]
+    optional_slots: [variant_id, product_name]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Add product to shopping cart"
+    use_case_key: catalog.cart.add
+    
+  - intent: collect_customer_info
+    domain: catalog
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [name, email, phone, address, payment_method, notes]
+    source_allowed: [PATTERN, LLM]
+    description: "Collect customer information for checkout"
+    use_case_key: catalog.checkout.collect_info
+    
+  - intent: place_order
+    domain: catalog
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [cart_id, customer_info, payment_method, shipping_method]
+    source_allowed: [PATTERN, LLM]
+    description: "Place order with cart items and customer info"
+    use_case_key: catalog.checkout.place_order
+    
+  - intent: escalate_to_livechat
+    domain: catalog
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [reason, context]
+    source_allowed: [PATTERN, LLM, ESCALATION]
+    description: "Escalate conversation to human support"
+    use_case_key: catalog.support.escalate
+    
+  - intent: track_order
+    domain: catalog
+    intent_type: KNOWLEDGE
+    required_slots: []
+    optional_slots: [order_id, order_number]
+    source_allowed: [PATTERN, EMBEDDING, LLM]
+    description: "Track order status"
+    use_case_key: catalog.order.track
+    
+  - intent: post_purchase_care
+    domain: catalog
+    intent_type: OPERATION
+    required_slots: []
+    optional_slots: [order_id, issue_type, feedback]
+    source_allowed: [PATTERN, LLM]
+    description: "Post-purchase support and care"
+    use_case_key: catalog.support.post_purchase
 
   # DBA Domain - OPERATION Intents
   - intent: analyze_slow_query

@@ -345,6 +345,7 @@ class TestSandboxRequest(BaseModel):
     """Test sandbox request"""
     message: str
     tenant_id: Optional[UUID] = None
+    session_id: Optional[str] = None  # For multi-turn conversation testing
     user_context: Optional[Dict[str, Any]] = None
 
 
@@ -353,6 +354,9 @@ class TestSandboxResponse(BaseModel):
     routing_result: Dict[str, Any]
     trace: Dict[str, Any]
     configs_used: List[Dict[str, Any]]
+    session_state: Optional[Dict[str, Any]] = None  # Session state after processing
+    domain_response: Optional[Dict[str, Any]] = None  # Domain response if routed
+    session_id: Optional[str] = None  # Session ID for next turn
 
 
 # ==================== Admin Users ====================

@@ -88,15 +88,17 @@ class RouterTrace:
 class RouterResponse:
     """Router output response"""
     trace_id: str
+    session_id: Optional[str] = None  # Session ID for session persistence
     domain: Optional[str] = None
     intent: Optional[str] = None
     intent_type: Optional[Literal["OPERATION", "KNOWLEDGE"]] = None
     slots: Dict[str, Any] = field(default_factory=dict)
     confidence: Optional[float] = None
-    source: Literal["META", "PATTERN", "EMBEDDING", "LLM", "UNKNOWN"] = "UNKNOWN"
+    source: Literal["META", "PATTERN", "EMBEDDING", "LLM", "CONTINUATION", "ESCALATION", "UNKNOWN"] = "UNKNOWN"
     message: Optional[str] = None
     status: Literal["ROUTED", "META_HANDLED", "UNKNOWN"] = "UNKNOWN"
     trace: Optional[RouterTrace] = None
+    options: Optional[list[str]] = None  # For UNKNOWN disambiguation
 
     def __post_init__(self):
         """Validate response"""
@@ -105,8 +107,14 @@ class RouterResponse:
                 raise ValueError("domain is required when status is ROUTED")
             if not self.intent:
                 raise ValueError("intent is required when status is ROUTED")
-            if self.confidence is None and self.source != "PATTERN":
-                raise ValueError("confidence is required for non-PATTERN sources")
+            if self.confidence is None and self.source not in ["PATTERN", "CONTINUATION"]:
+                raise ValueError("confidence is required for non-PATTERN/CONTINUATION sources")
+        
+        # ESCALATION doesn't need domain/intent
+        if self.source == "ESCALATION":
+            if self.status != "UNKNOWN":
+                # Allow ESCALATION with UNKNOWN status
+                pass
 
         if self.confidence is not None:
             if not 0.0 <= self.confidence <= 1.0:

@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from ...schemas import DomainRequest, DomainResponse, DomainResult
 from ...shared.exceptions import DomainError, InvalidInputError
 from ...shared.logger import logger
+from ...shared.intent_registry import intent_registry
 from .adapters.catalog_repository import CatalogRepositoryAdapter
 from .use_cases import (
     SearchProductUseCase,
@@ -13,6 +14,12 @@ from .use_cases import (
     CompareProductsUseCase,
     CheckAvailabilityUseCase,
     GetProductPriceUseCase,
+    AddToCartUseCase,
+    CollectCustomerInfoUseCase,
+    PlaceOrderUseCase,
+    EscalateToLivechatUseCase,
+    TrackOrderUseCase,
+    PostPurchaseCareUseCase,
 )
 
 
@@ -43,46 +50,28 @@ class CatalogEntryHandler:
         
         # Initialize use cases with repository injection
         self.use_cases = {
+            # KNOWLEDGE use cases
             "catalog.search": SearchProductUseCase(repository),
             "catalog.info": GetProductInfoUseCase(repository),
             "catalog.compare": CompareProductsUseCase(repository),
             "catalog.availability": CheckAvailabilityUseCase(repository),
             "catalog.price": GetProductPriceUseCase(repository),
+            # OPERATION use cases (E-commerce flow)
+            "catalog.cart.add": AddToCartUseCase(repository),
+            "catalog.checkout.collect_info": CollectCustomerInfoUseCase(repository),
+            "catalog.checkout.place_order": PlaceOrderUseCase(repository),
+            "catalog.support.escalate": EscalateToLivechatUseCase(repository),
+            "catalog.order.track": TrackOrderUseCase(repository),
+            "catalog.support.post_purchase": PostPurchaseCareUseCase(repository),
         }
         
-        # Intent mapping: Router intents (from seed data) → Use case keys
-        # This maps the intents from pattern rules/routing rules to our use case keys
-        self.intent_mapping = {
-            # Search intents
-            "search_products": "catalog.search",
-            "search_by_category": "catalog.search",  # Category search also uses search use case
-            
-            # Product info intents
-            "query_product_detail": "catalog.info",
-            "query_variant": "catalog.info",  # Variant query is part of product info
-            
-            # Price intent
-            "query_price": "catalog.price",
-            
-            # Availability intent
-            "check_availability": "catalog.availability",
-            
-            # Comparison intent
-            "compare_products": "catalog.compare",
-            
-            # Also support direct use case keys (for backward compatibility)
-            "catalog.search": "catalog.search",
-            "catalog.info": "catalog.info",
-            "catalog.compare": "catalog.compare",
-            "catalog.availability": "catalog.availability",
-            "catalog.price": "catalog.price",
-        }
+        # Intent mapping is now loaded from intent_registry.yaml (F3.1)
+        # No hard-code mapping needed - use intent_registry.get_use_case_key()
         
         logger.info(
             "CatalogEntryHandler initialized",
             extra={
                 "use_cases": list(self.use_cases.keys()),
-                "intent_mapping": list(self.intent_mapping.keys()),
             }
         )
     
@@ -117,15 +106,14 @@ class CatalogEntryHandler:
                 }
             )
             
-            # Map router intent to use case key
-            use_case_key = self.intent_mapping.get(request.intent)
+            # Map router intent to use case key using intent registry (F3.1)
+            use_case_key = intent_registry.get_use_case_key(request.intent)
             
             if not use_case_key:
                 logger.warning(
-                    f"Unknown catalog intent: {request.intent}",
+                    f"Unknown catalog intent or no use_case_key in registry: {request.intent}",
                     extra={
                         "trace_id": request.trace_id,
-                        "available_intents": list(self.intent_mapping.keys()),
                     }
                 )
                 # Fallback to search if intent is unknown
