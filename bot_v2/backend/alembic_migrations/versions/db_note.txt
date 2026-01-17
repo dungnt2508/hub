@@ -1,0 +1,142 @@
+## bộ bảng tối thiểu – đủ dùng, đủ scale, không thừa cho bot service kiểu catalog / sales-lite đa-tenant :
+
+I. Core platform (bắt buộc)
+
+1. tenants : Định danh + trạng thái của một khách hàng sử dụng bot service.
+(chịu trách nhiệm : Ai sở hữu dữ liệu, Bot đang hoạt động hay bị khóa, Thuộc plan nào, Khi nào cần invalidate cache)
+    id
+    name
+    status
+    plan
+    settings_version
+    created_at
+    updated_at
+
+2. tenant_secrets : chứa API key, Token kênh. Không tham gia runtime logic, Không cho LLM đọc
+    id
+    tenant_id
+    type (api_key, telegram, web_embed, teams)
+    secret_encrypted
+    rotated_at
+    created_at
+
+3. channels : Cấu hình các kênh giao tiếp của bot
+    id
+    tenant_id
+    type (telegram, web, teams)
+    enabled
+    config_json
+    created_at
+    updated_at
+
+II. Catalog / knowledge (read-only runtime)
+
+1. products : Danh sách sản phẩm mà bot được phép nói tới.
+(Chịu trách nhiệm danh tính sản phẩm, trạng thái sử dụng, phân loại, sku, slug để truy vấn. Không mô tả chi tiết, không suy luận)
+    id
+    tenant_id
+    sku
+    slug
+    name
+    category
+    status
+
+2. product_attributes : Mô tả chi tiết có cấu trúc cho sản phẩm.
+(Chịu trách nhiệm thông số, đặc tính, giá trị đo lường. Không chứa marketing text, không chứa usecase)
+    id
+    tenant_id
+    product_id
+    attributes_key
+    attributes_value
+    attributes_value_type
+
+3. use_cases : Cho phép hoặc cấm ngữ cảnh sử dụng sản phẩm.
+    id
+    tenant_id
+    product_id
+    type (allowed / disallowed)
+    description
+
+4. faqs : Câu hỏi–trả lời đã được duyệt trước.
+    id
+    tenant_id
+    scope (global / product)
+    product_id (nullable)
+    question
+    answer
+
+5. comparisons : Cho phép bot so sánh chỉ trong phạm vi được khai báo.
+    id
+    tenant_id
+    product_a
+    product_b
+    allowed_attributes (array/json)
+
+6. guardrails : Hàng rào an toàn & pháp lý.
+    id
+    tenant_id
+    forbidden_topics
+    disclaimers
+    fallback_message
+
+III. Flow & logic support
+
+1. intents : Định nghĩa ý định hợp lệ mà bot được xử lý.
+    id
+    tenant_id
+    name            (ask_price, compare, suitability)
+    domain          (product, policy, sales)
+    priority
+
+2. intent_patterns : Gợi ý kỹ thuật để shortlist intent.
+    id
+    intent_id
+    type            (keyword | regex | phrase)
+    pattern
+    weight
+
+3. intent_hints : Context hint cho LLM khi phân loại intent.
+    id
+    intent_id
+    hint_text
+
+4. intent_actions : Quy định intent → hành động.
+    id
+    intent_id
+    action_type     (query_db | handoff | refuse | rag)
+    config_json
+    priority
+
+IV. Migration & versioning (admin only)
+
+1. migration_jobs : Theo dõi tiến trình nhập dữ liệu.
+    id
+    tenant_id
+    source_type (excel, cms, crawl, ai)
+    status
+    created_at
+
+2. migration_versions : Chốt dữ liệu được phép dùng.
+    id
+    tenant_id
+    version
+    approved_by
+    approved_at
+
+V. Observability (bắt buộc nếu vận hành)
+
+1. conversation_logs : Quan sát hành vi bot.
+    id
+    tenant_id
+    channel_id
+    intent
+    domain
+    success
+    created_at
+
+2. failed_queries : Bắt lỗ hổng tri thức.
+    id
+    tenant_id
+    query
+    reason
+    created_at

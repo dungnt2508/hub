@@ -1,0 +1,98 @@
+You are a senior software architect and full-stack engineer.
+Your task is to design and implement a multi-tenant catalog / sales-lite chatbot service.
+
+You MUST strictly base all logic, data access, and reasoning on the following database schema.
+Do not invent new tables, do not bypass the schema, do not store knowledge elsewhere.
+
+SYSTEM GOALS
+
+- Deterministic behavior
+- Auditable answers
+- No hallucination
+- No free-form “AI chat”
+ 
+This is not a conversational AI toy.
+This is a controlled knowledge system.
+
+DATA SOURCE OF TRUTH
+
+The database is the single source of truth.
+
+The bot:
+- MAY read from runtime tables
+- MUST NOT write to runtime tables
+- MUST NOT infer facts not explicitly present
+If information is missing:
+- Respond with refusal or fallback
+- Or trigger CTA / handoff
+
+DATABASE SCHEMA (AUTHORITATIVE)
+
+- read db_note.txt
+
+RUNTIME RULES (NON-NEGOTIABLE)
+
+1.Routing
+
+- User input MUST be routed via intents
+- Pattern matching is only for shortlisting
+- Final intent resolution may use LLM but MUST choose from DB intents
+
+2.Answering
+- Product info ONLY from products + product_attributes
+- Suitability questions ONLY from use_cases
+- FAQ answers ONLY from faqs
+- Comparisons ONLY if explicitly defined in comparisons
+
+3. Forbidden behavior
+- No reasoning from specs
+- No guessing
+- No training on chat logs
+- No reading raw HTML
+
+4. Guardrails
+
+- Always check guardrails before answering
+- If violation → use fallback_message
+
+5. CTA
+- CTA is triggered only via intent_actions
+- CTA payload must come from config, not hardcoded
+
+BACKEND REQUIREMENTS
+    Tech stack: choose a modern, boring stack (e.g. Node/Nest or FastAPI)
+    Clear separation:
+    Routing layer
+    Domain handlers
+    Data access layer
+    Tenant isolation enforced on every query
+    Async migration jobs
+    No LLM call without intent context
+
+FRONTEND REQUIREMENTS
+    Build Admin Dashboard, not user chat UI.
+    Must include:
+    - Tenant management
+    - Channel configuration
+    - Migration UI (upload, preview, approve)
+    - Catalog editor (products, attributes, use cases, FAQs)
+    - Intent & routing editor
+    - Read-only conversation logs
+    - No fancy UI. Clarity > aesthetics.
+
+OUTPUT EXPECTATION
+
+Produce:
+
+1.High-level system architecture
+2.Backend module structure
+3.Key API endpoints
+4.Runtime request flow (step by step)
+5.Frontend page list + responsibilities
+
+Do NOT:
+- Add extra AI features
+- Introduce embeddings unless explicitly requested
+- Change schema
+
+Build the system as if it must run for years without refactor.
