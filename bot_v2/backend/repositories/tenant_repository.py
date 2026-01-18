@@ -149,3 +149,47 @@ class TenantRepository:
             )
             for row in rows
         ]
+    
+    async def create_tenant(
+        self,
+        name: str,
+        status: str = "active",
+        plan: Optional[str] = None
+    ) -> Tenant:
+        """Create a new tenant"""
+        from uuid import uuid4
+        from datetime import datetime
+        from sqlalchemy import text
+        
+        tenant_id = uuid4()
+        now = datetime.utcnow()
+        
+        stmt = text("""
+            INSERT INTO tenants (id, name, status, plan, settings_version, created_at, updated_at)
+            VALUES (:id, :name, :status, :plan, :settings_version, :created_at, :updated_at)
+            RETURNING id, name, status, plan, settings_version, created_at, updated_at
+        """)
+        result = await self.session.execute(
+            stmt,
+            {
+                "id": tenant_id,
+                "name": name,
+                "status": status,
+                "plan": plan,
+                "settings_version": 1,
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+        await self.session.commit()
+        row = result.fetchone()
+        
+        return Tenant(
+            id=row[0],
+            name=row[1],
+            status=row[2],
+            plan=row[3],
+            settings_version=row[4],
+            created_at=row[5],
+            updated_at=row[6],
+        )

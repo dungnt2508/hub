@@ -109,8 +109,11 @@ cp .env.example .env
 # Run migrations
 alembic upgrade head
 
+# Seed sample data (optional, for development)
+python -m backend.scripts.seed_data
+
 # Start server
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8386
 ```
 
 ### Environment Variables
@@ -118,7 +121,7 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```env
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/bot_v2_db
 API_HOST=0.0.0.0
-API_PORT=8000
+API_PORT=8386
 SECRET_KEY=your-secret-key
 LLM_PROVIDER=openai  # optional
 LLM_API_KEY=your-api-key  # optional

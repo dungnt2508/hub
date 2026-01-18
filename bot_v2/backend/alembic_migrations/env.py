@@ -1,10 +1,12 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, create_engine
 from sqlalchemy import pool
 from sqlalchemy import MetaData
 from alembic import context
 import os
 import sys
+import configparser
+from urllib.parse import urlparse, urlunparse, quote, unquote
 
 # Add the app directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -24,26 +26,185 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+def normalize_url(url):
+    """Normalize database URL to ensure proper UTF-8 encoding.
+    
+    This function handles encoding issues that can occur on Windows
+    when reading config files with wrong encoding (e.g., Windows-1252).
+    The solution: get original bytes, decode correctly, then reconstruct URL.
+    """
+    if url is None:
+        return None
+    
+    # If URL is bytes, decode to string first
+    if isinstance(url, bytes):
+        try:
+            url = url.decode('utf-8')
+        except UnicodeDecodeError:
+            # Try latin-1 (which can decode any byte sequence)
+            url = url.decode('latin-1')
+    
+    # Convert to string if not already
+    if not isinstance(url, str):
+        url = str(url)
+    
+    # Try to encode as UTF-8 to check validity
+    try:
+        url.encode('utf-8')
+        # URL is valid UTF-8, parse and reconstruct to ensure clean encoding
+        parsed = urlparse(url)
+        normalized = urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment
+        ))
+        # Final verification
+        normalized.encode('utf-8')
+        return normalized
+    except UnicodeEncodeError:
+        # URL contains characters that can't be encoded as UTF-8
+        # This means it was decoded with wrong encoding (e.g., Windows-1252)
+        # Get original bytes by encoding with latin-1 (preserves all bytes)
+        try:
+            url_bytes = url.encode('latin-1')
+            # Now try to decode as UTF-8 (if original was UTF-8 but mis-decoded)
+            fixed_url = url_bytes.decode('utf-8', errors='strict')
+            # Parse and reconstruct
+            parsed = urlparse(fixed_url)
+            normalized = urlunparse((
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+            normalized.encode('utf-8')
+            return normalized
+        except UnicodeDecodeError:
+            # Original bytes were not valid UTF-8
+            # This means the file itself has encoding issues
+            # Use replace strategy to fix invalid characters
+            try:
+                # Try to fix by replacing invalid bytes
+                fixed_url = url_bytes.decode('utf-8', errors='replace')
+                parsed = urlparse(fixed_url)
+                normalized = urlunparse((
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment
+                ))
+                return normalized
+            except Exception:
+                # Last resort: replace in original string
+                fixed_url = url.encode('utf-8', errors='replace').decode('utf-8')
+                try:
+                    parsed = urlparse(fixed_url)
+                    return urlunparse((
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment
+                    ))
+                except Exception:
+                    return fixed_url
+
+def get_url_from_ini_file():
+    """Read URL directly from alembic.ini file with UTF-8 encoding"""
+    # Get the alembic.ini file path
+    ini_file = config.config_file_name
+    if not ini_file:
+        # Try to find alembic.ini in current directory or parent
+        possible_paths = [
+            os.path.join(os.getcwd(), "alembic.ini"),
+            os.path.join(os.path.dirname(os.getcwd()), "alembic.ini"),
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                ini_file = path
+                break
+    
+    if ini_file and os.path.exists(ini_file):
+        try:
+            # Read file with UTF-8 encoding explicitly
+            # Try multiple methods to ensure we get UTF-8
+            parser = configparser.ConfigParser()
+            # Method 1: Read with UTF-8 explicitly
+            try:
+                with open(ini_file, 'r', encoding='utf-8') as f:
+                    parser.read_file(f)
+                if parser.has_option('alembic', 'sqlalchemy.url'):
+                    url = parser.get('alembic', 'sqlalchemy.url')
+                    # Verify it's valid UTF-8
+                    url.encode('utf-8')
+                    return url
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                # If UTF-8 fails, read as bytes and decode manually
+                with open(ini_file, 'rb') as f:
+                    content = f.read()
+                # Try to decode as UTF-8
+                try:
+                    text = content.decode('utf-8')
+                except UnicodeDecodeError:
+                    # If that fails, try to find and fix the problematic byte
+                    # Replace invalid bytes with replacement character
+                    text = content.decode('utf-8', errors='replace')
+                # Parse the text
+                parser.read_string(text)
+                if parser.has_option('alembic', 'sqlalchemy.url'):
+                    url = parser.get('alembic', 'sqlalchemy.url')
+                    # Normalize the URL
+                    return normalize_url(url)
+        except Exception as e:
+            # If reading with UTF-8 fails, fall back to config object
+            import sys
+            sys.stderr.write(f"Warning: Could not read alembic.ini with UTF-8: {e}\n")
+    
+    return None
+
 def get_url():
-    """Get database URL from environment or alembic.ini"""
-    # First try environment variable
+    """Get database URL from environment variable DATABASE_URL.
+    Only fallback to file if environment variable is not set.
+    """
+    # First and primary: try environment variable
     database_url = os.getenv("DATABASE_URL")
     if database_url:
+        database_url = normalize_url(database_url)
         # Convert async URL to sync URL for Alembic
-        if database_url.startswith("postgresql+asyncpg://"):
+        if database_url and database_url.startswith("postgresql+asyncpg://"):
             database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
-        elif database_url.startswith("postgresql+psycopg2://"):
+        elif database_url and database_url.startswith("postgresql+psycopg2://"):
             database_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
         return database_url
-    
-    # Fallback to alembic.ini config
-    # This will be read from the config section below
+
+    # Fallback: try to read from ini file directly with UTF-8 (only if no env var)
+    database_url = get_url_from_ini_file()
+    if database_url:
+        database_url = normalize_url(database_url)
+        # Convert async URL to sync URL for Alembic
+        if database_url and database_url.startswith("postgresql+asyncpg://"):
+            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+        elif database_url and database_url.startswith("postgresql+psycopg2://"):
+            database_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
+        return database_url
+
+    # Last resort: use config object (may have encoding issues, but better than nothing)
     return None
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -58,15 +219,22 @@ def run_migrations_offline() -> None:
 
     """
     url = get_url()
-    # If no URL from environment, use the one from alembic.ini (via config object)
+    # If no URL from get_url(), try reading from ini file (fallback)
     if url is None:
-        url = config.get_main_option("sqlalchemy.url")
+        url = get_url_from_ini_file()
+        if url:
+            url = normalize_url(url)
+        else:
+            # Last resort: fallback to config object (may have encoding issues)
+            url = config.get_main_option("sqlalchemy.url")
+            url = normalize_url(url)
+        
         # Convert async URL to sync URL for Alembic
         if url and url.startswith("postgresql+asyncpg://"):
             url = url.replace("postgresql+asyncpg://", "postgresql://")
         elif url and url.startswith("postgresql+psycopg2://"):
             url = url.replace("postgresql+psycopg2://", "postgresql://")
-    
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -83,33 +251,63 @@ def run_migrations_online() -> None:
 
     In this scenario we need to create an Engine
     and associate a connection with the context.
+    Uses DATABASE_URL environment variable as primary source.
 
     """
-    configuration = config.get_section(config.config_ini_section)
+    # Get URL - prioritize environment variable DATABASE_URL
     database_url = get_url()
     
-    # If we got a URL from environment, use it (and convert async to sync)
-    if database_url:
-        # Convert async URL to sync URL for Alembic
-        if database_url.startswith("postgresql+asyncpg://"):
-            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
-        elif database_url.startswith("postgresql+psycopg2://"):
-            database_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
-        configuration["sqlalchemy.url"] = database_url
-    # Otherwise, use the URL from alembic.ini (which will be read from configuration)
-    # But we still need to convert it from async to sync if present
-    elif "sqlalchemy.url" in configuration:
-        url = configuration["sqlalchemy.url"]
-        if url.startswith("postgresql+asyncpg://"):
-            configuration["sqlalchemy.url"] = url.replace("postgresql+asyncpg://", "postgresql://")
-        elif url.startswith("postgresql+psycopg2://"):
-            configuration["sqlalchemy.url"] = url.replace("postgresql+psycopg2://", "postgresql://")
+    # If no URL from get_url(), try reading from ini file directly (fallback)
+    if not database_url:
+        database_url = get_url_from_ini_file()
+        if database_url:
+            database_url = normalize_url(database_url)
+            # Convert async URL to sync URL for Alembic
+            if database_url and database_url.startswith("postgresql+asyncpg://"):
+                database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+            elif database_url and database_url.startswith("postgresql+psycopg2://"):
+                database_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
     
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # If still no URL, fall back to config object (last resort, may have encoding issues)
+    if not database_url:
+        database_url = config.get_main_option("sqlalchemy.url")
+        database_url = normalize_url(database_url)
+        if database_url and database_url.startswith("postgresql+asyncpg://"):
+            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+        elif database_url and database_url.startswith("postgresql+psycopg2://"):
+            database_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
+    
+    # If we have a URL, create engine directly from it to avoid encoding issues
+    if database_url:
+        # Final verification: ensure URL is valid UTF-8
+        try:
+            database_url.encode('utf-8')
+        except (UnicodeEncodeError, AttributeError):
+            # If encoding fails, normalize again
+            database_url = normalize_url(database_url)
+        
+        # Create engine directly from normalized URL
+        connectable = create_engine(
+            database_url,
+            poolclass=pool.NullPool,
+        )
+    else:
+        # Last resort: use configuration from config object
+        configuration = config.get_section(config.config_ini_section) or {}
+        if "sqlalchemy.url" in configuration:
+            url = configuration["sqlalchemy.url"]
+            url = normalize_url(url)
+            if url and url.startswith("postgresql+asyncpg://"):
+                url = url.replace("postgresql+asyncpg://", "postgresql://")
+            elif url and url.startswith("postgresql+psycopg2://"):
+                url = url.replace("postgresql+psycopg2://", "postgresql://")
+            configuration["sqlalchemy.url"] = url
+        
+        connectable = engine_from_config(
+            configuration,
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+        )
 
     with connectable.connect() as connection:
         context.configure(

@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.repositories.migration_repository import MigrationRepository
-from backend.models.migration import MigrationJob, MigrationVersion
+from backend.domain.migration import MigrationJob, MigrationVersion
 
 
 class MigrationService:

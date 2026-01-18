@@ -22,6 +22,7 @@ from backend.schemas.admin import (
     ConversationLogResponse,
     FailedQueryResponse,
 )
+from backend.schemas.admin_requests import TenantCreateRequest
 from backend.schemas.converters import (
     tenant_to_schema,
     channel_to_schema,
@@ -53,6 +54,27 @@ async def list_tenants(
     repo = TenantRepository(db)
     tenants = await repo.list_tenants(limit=limit, offset=offset)
     return {"tenants": [tenant_to_schema(t).dict() for t in tenants]}
+
+
+@router.post("/tenants")
+async def create_tenant(
+    request: TenantCreateRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new tenant"""
+    repo = TenantRepository(db)
+    
+    # Check if tenant name already exists
+    existing = await repo.get_tenant_by_name(request.name)
+    if existing:
+        raise HTTPException(status_code=400, detail="Tenant with this name already exists")
+    
+    tenant = await repo.create_tenant(
+        name=request.name,
+        status=request.status,
+        plan=request.plan
+    )
+    return tenant_to_schema(tenant).dict()
 
 
 @router.get("/tenants/{tenant_id}")
