@@ -1,0 +1,382 @@
+# PRODUCTION COLLECTOR - Optimized for High Load
+# Architecture:
+# 1. Real-time signals (Connections, Batch Requests, Waits) -> Direct DMV (Safe for 15s)
+# 2. Diagnosis (Fragmentation, Anti-patterns) -> Blitz Tables (Async Agent Job)
+# 3. Size/Growth -> System Views (Safe)
+
+collector_name: mssql_production
+min_interval: 15s
+
+metrics:
+  # ============================================================================
+  # 1. GLOBAL INSTANCE SIGNALS (Fast, Critical)
+  # ============================================================================
+  
+  # Uptime (Gauge)
+  - metric_name: mssql_uptime_seconds
+    type: gauge
+    help: 'SQL Server uptime in seconds.'
+    values: [uptime_seconds]
+    query: |
+      SELECT DATEDIFF(second, sqlserver_start_time, GETDATE()) AS uptime_seconds
+      FROM sys.dm_os_sys_info
+
+  # Batch Requests (Counter - Cumulative)
+  # Indicates overall activity throughput
+  - metric_name: mssql_batch_requests_total
+    type: counter
+    help: 'Total number of batch requests received.'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Batch Requests/sec'
+
+  # User Errors (Counter - Cumulative)
+  - metric_name: mssql_user_errors_total
+    type: counter
+    help: 'Total number of user errors.'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Errors/sec' AND instance_name = 'User Errors'
+
+  # Deadlocks (Counter - Cumulative)
+  - metric_name: mssql_deadlocks_total
+    type: counter
+    help: 'Total number of deadlocks.'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Number of Deadlocks/sec' AND instance_name = '_Total'
+
+  # Login/Logout (Counter - Cumulative)
+  - metric_name: mssql_logins_total
+    type: counter
+    help: 'Total number of logins started.'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Logins/sec'
+
+  # Connections (Gauge - Snapshot)
+  - metric_name: mssql_connections
+    type: gauge
+    help: 'Active connections by database.'
+    key_labels:
+      - db
+    values: [count]
+    query: |
+      SELECT 
+        ISNULL(DB_NAME(dbid), 'System') AS db, 
+        COUNT(spid) AS count
+      FROM sys.sysprocesses
+      WHERE dbid > 4
+      GROUP BY DB_NAME(dbid)
+
+  # ============================================================================
+  # 2. RESOURCE CONTROLLERS (Memory, Buffer, CPU)
+  # ============================================================================
+
+  # Page Life Expectancy (Gauge - Value)
+  - metric_name: mssql_page_life_expectancy_seconds
+    type: gauge
+    help: 'Page life expectancy (Min across NUMA).'
+    values: [ple_seconds]
+    query: |
+      SELECT MIN(cntr_value) AS ple_seconds
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Page life expectancy'
+
+  # Memory Usage (Gauge)
+  - metric_name: mssql_memory_usage_gb
+    type: gauge
+    help: 'SQL Server memory usage (GB).'
+    value_label: 'memory_type'
+    values: [resident_gb, virtual_gb]
+    query: |
+      SELECT
+        CAST(physical_memory_in_use_kb / 1024.0 / 1024.0 AS DECIMAL(10, 2)) AS resident_gb,
+        CAST(virtual_address_space_committed_kb / 1024.0 / 1024.0 AS DECIMAL(10, 2)) AS virtual_gb
+      FROM sys.dm_os_process_memory
+
+  # Lazy Writes (Counter - Cumulative)
+  # Indicator of memory pressure (buffer pool thrashing)
+  - metric_name: mssql_lazy_writes_total
+    type: counter
+    help: 'Total lazy writes (memory pressure indicator).'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Lazy writes/sec'
+
+  # ============================================================================
+  # 3. WAIT STATISTICS (Bottleneck Identification)
+  # ============================================================================
+
+  # Wait Stats (Counter - Cumulative)
+  # Top 10 by wait time, excluding benign waits.
+  - metric_name: mssql_wait_stats_ms_total
+    type: counter
+    help: 'Total wait time in milliseconds (Cumulative).'
+    key_labels:
+      - wait_type
+    value_label: 'stat_type'
+    values: [wait_time_ms, waiting_tasks_count, signal_wait_time_ms]
+    query: |
+      SELECT TOP 15
+        wait_type,
+        wait_time_ms,
+        waiting_tasks_count,
+        signal_wait_time_ms
+      FROM sys.dm_os_wait_stats
+      WHERE wait_type NOT IN (
+        'CLR_SEMAPHORE', 'LAZYWRITER_SLEEP', 'RESOURCE_QUEUE', 'SLEEP_TASK',
+        'SLEEP_SYSTEMTASK', 'SQLTRACE_BUFFER_FLUSH', 'WAITFOR', 'LOGMGR_QUEUE',
+        'CHECKPOINT_QUEUE', 'REQUEST_FOR_DEADLOCK_SEARCH', 'XE_TIMER_EVENT',
+        'BROKER_TO_FLUSH', 'BROKER_TASK_STOP', 'CLR_MANUAL_EVENT', 'CLR_AUTO_EVENT',
+        'DISPATCHER_QUEUE_SEMAPHORE', 'FT_IFTS_SCHEDULER_IDLE_WAIT', 'XE_DISPATCHER_WAIT',
+        'XE_DISPATCHER_JOIN', 'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', 'ONDEMAND_TASK_QUEUE',
+        'BROKER_EVENTHANDLER', 'SLEEP_BPOOL_FLUSH', 'DIRTY_PAGE_POLL', 'HADR_FILESTREAM_IOMGR_IOCOMPLETION'
+      )
+      ORDER BY wait_time_ms DESC
+
+  # ============================================================================
+  # 4. STORAGE & IO (Capacity & Latency)
+  # ============================================================================
+
+  # File IO Latency (Counter - Cumulative)
+  # Aggregated by Database and File Type (Data/Log) to reduce cardinality
+  - metric_name: mssql_io_stall_ms_total
+    type: counter
+    help: 'Total IO stall time in milliseconds.'
+    key_labels:
+      - db
+      - file_type
+    value_label: 'io_type'
+    values: [io_stall_read_ms, io_stall_write_ms, num_of_reads, num_of_writes]
+    query: |
+      SELECT 
+        DB_NAME(vfs.database_id) AS db,
+        CASE mf.type WHEN 0 THEN 'Data' WHEN 1 THEN 'Log' ELSE 'Other' END AS file_type,
+        SUM(vfs.io_stall_read_ms) AS io_stall_read_ms,
+        SUM(vfs.io_stall_write_ms) AS io_stall_write_ms,
+        SUM(vfs.num_of_reads) AS num_of_reads,
+        SUM(vfs.num_of_writes) AS num_of_writes
+      FROM sys.dm_io_virtual_file_stats(NULL, NULL) vfs
+      INNER JOIN sys.master_files mf ON vfs.database_id = mf.database_id AND vfs.file_id = mf.file_id
+      WHERE vfs.database_id > 4
+      GROUP BY DB_NAME(vfs.database_id), mf.type
+
+  # Transaction Log Usage (Gauge)
+  # Critical for availability
+  - metric_name: mssql_log_space_used_percent
+    type: gauge
+    help: 'Transaction log space used (%).'
+    key_labels:
+      - db
+    value_label: 'stat'
+    values: [log_space_used_percent, log_size_mb]
+    query: |
+      SELECT 
+        DB_NAME(database_id) AS db,
+        CAST(used_log_space_in_percent AS DECIMAL(5, 2)) AS log_space_used_percent,
+        CAST(total_log_size_in_bytes / 1024.0 / 1024.0 AS DECIMAL(10, 2)) AS log_size_mb
+      FROM sys.dm_db_log_space_usage
+      WHERE database_id > 4
+
+  # ============================================================================
+  # 5. DIAGNOSTICS (Blitz Integration)
+  # Requires: First Responder Kit (sp_Blitz, sp_BlitzCache) + Agent Jobs
+  # ============================================================================
+
+  # Blitz Findings (Gauge - Snapshot)
+  - metric_name: mssql_blitz_findings
+    type: gauge
+    help: 'Count of Blitz findings by priority.'
+    key_labels:
+      - priority
+      - findings_group
+    values: [count]
+    query: |
+      SELECT 
+        CAST(Priority AS VARCHAR(10)) AS priority,
+        FindingsGroup AS findings_group,
+        COUNT(*) AS count
+      FROM Maintenance.dbo.BlitzResults
+      WHERE Priority > 0 and Priority < 255 and CheckDate >= DATEADD(HOUR, -4, SYSUTCDATETIME())
+      GROUP BY Priority, FindingsGroup
+      ORDER BY Priority 
+
+  # Top CPU Queries (Gauge - Snapshot from BlitzCache)
+  # Replaces expensive live query text parsing
+  - metric_name: mssql_blitz_cache_cpu_top10
+    type: gauge
+    help: 'Top 10 CPU queries from BlitzCache snapshot.'
+    key_labels:
+      - query_hash
+      - db
+    value_label: 'metric'
+    values: [total_cpu_ms, execution_count]
+    query: |
+      SELECT TOP 10
+        CONVERT(varchar(20), QueryHash, 2) AS query_hash,
+        ISNULL(DatabaseName, 'Unknown') AS db,
+        TotalCPU / 1000.0 AS total_cpu_ms,
+        ExecutionCount AS execution_count
+      FROM Maintenance.dbo.BlitzCache
+      WHERE CheckDate >= DATEADD(HOUR, -24, GETDATE())
+        AND Pattern = 'cpu'
+      ORDER BY TotalCPU DESC
+
+  # Snapshot Age (Gauge)
+  # Watchdog to ensure Blitz jobs are running 
+  - metric_name: mssql_blitz_snapshot_age_hours
+    type: gauge
+    help: 'Hours since last Blitz snapshot.'
+    key_labels:
+      - snapshot_type
+    values: [age_hours]
+    query: |
+      SELECT 
+        'BlitzResults' AS snapshot_type,
+        DATEDIFF(HOUR, MAX(CheckDate), GETDATE()) AS age_hours
+      FROM Maintenance.dbo.BlitzResults
+
+  # ============================================================================
+  # 6. MISSING STANDARD METRICS (Required for Dashboards)
+  # ============================================================================
+
+  # SQL Agent Status (Gauge)
+  - metric_name: mssql_agent_status
+    type: gauge
+    help: 'SQL Server Agent status (1 = Running, 0 = Stopped).'
+    values: [status]
+    query: |
+      SELECT CASE WHEN status_desc = 'Running' THEN 1 ELSE 0 END AS status
+      FROM sys.dm_server_services
+      WHERE servicename LIKE 'SQL Server Agent%'
+
+  # Blocking session count (Gauge)
+  - metric_name: mssql_blocking_session_count
+    type: gauge
+    help: 'Number of currently blocked sessions.'
+    values: [count]
+    query: |
+      SELECT COUNT(DISTINCT session_id) AS count
+      FROM sys.dm_exec_requests
+      WHERE blocking_session_id != 0
+
+  # Long running queries (Gauge)
+  - metric_name: mssql_long_running_queries
+    type: gauge
+    help: 'Number of queries running for more than 30 seconds.'
+    values: [count]
+    query: |
+      SELECT COUNT(*) AS count
+      FROM sys.dm_exec_requests
+      WHERE start_time < DATEADD(SECOND, -30, GETDATE())
+        AND session_id > 50
+
+  # Buffer cache hit ratio (Gauge)
+  - metric_name: mssql_buffer_cache_hit_ratio
+    type: gauge
+    help: 'Buffer cache hit ratio.'
+    values: [hit_ratio]
+    query: |
+      SELECT (a.cntr_value * 1.0 / b.cntr_value) * 100.0 AS hit_ratio
+      FROM sys.dm_os_performance_counters  a
+      JOIN  (SELECT cntr_value, OBJECT_NAME FROM sys.dm_os_performance_counters
+             WHERE counter_name = 'Buffer cache hit ratio base') b ON  a.OBJECT_NAME = b.OBJECT_NAME
+      WHERE a.counter_name = 'Buffer cache hit ratio' 
+        AND a.OBJECT_NAME LIKE '%Buffer Manager%'
+
+  # Lock Waits (Counter)
+  - metric_name: mssql_lock_waits_total
+    type: counter
+    help: 'Total lock waits.'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Lock Waits/sec' AND instance_name = '_Total'
+
+  # Lock Timeouts (Counter)
+  - metric_name: mssql_lock_timeouts_total
+    type: counter
+    help: 'Total lock timeouts.'
+    values: [cntr_value]
+    query: |
+      SELECT cntr_value
+      FROM sys.dm_os_performance_counters
+      WHERE counter_name = 'Lock Timeouts/sec' AND instance_name = '_Total'
+
+  # Database State (Gauge)
+  - metric_name: mssql_database_state
+    type: gauge
+    help: 'Database state (0 = Online, 1 = Restoring, 2 = Recovering, 3 = Recovery Pending, 4 = Suspect, 5 = Emergency, 6 = Offline).'
+    key_labels: [db]
+    values: [state]
+    query: |
+      SELECT name AS db, state AS state FROM sys.databases WHERE database_id > 4
+
+  # Backup Status (Gauge)
+  - metric_name: mssql_backup_status
+    type: gauge
+    help: 'Health status of the most recent Full backup per database (1 = Healthy, 0 = Warning, -1 = Critical).'
+    key_labels: [db, backup_type]
+    values: [status]
+    query: |
+      SELECT 
+        d.name AS db,
+        'Full' AS backup_type,
+        CASE 
+          WHEN MAX(b.backup_finish_date) >= DATEADD(HOUR, -24, GETDATE()) THEN 1
+          WHEN MAX(b.backup_finish_date) >= DATEADD(DAY, -7, GETDATE()) THEN 0
+          ELSE -1 
+        END AS status
+      FROM sys.databases d
+      LEFT JOIN msdb.dbo.backupset b ON d.name = b.database_name AND b.type = 'D'
+      WHERE d.database_id > 4
+      GROUP BY d.name
+
+  # Database Size (Gauge)
+  - metric_name: mssql_database_size_gb
+    type: gauge
+    help: 'Database data/log file size in GB.'
+    key_labels: [db, size_type]
+    values: [size_gb]
+    query: |
+      SELECT 
+        DB_NAME(database_id) AS db,
+        CASE type WHEN 0 THEN 'Data' WHEN 1 THEN 'Log' ELSE 'Other' END AS size_type,
+        CAST(SUM(size) * 8.0 / 1024 / 1024 AS DECIMAL(10, 2)) AS size_gb
+      FROM sys.master_files
+      WHERE database_id > 4
+      GROUP BY database_id, type
+
+  # OS Memory Total (Gauge)
+  - metric_name: mssql_os_memory_total_gb
+    type: gauge
+    help: 'Total OS memory in GB.'
+    values: [total_gb]
+    query: |
+      SELECT CAST(total_physical_memory_kb / 1024.0 / 1024.0 AS DECIMAL(10, 2)) AS total_gb
+      FROM sys.dm_os_sys_memory
+
+  # OS Memory Breakdown (Gauge)
+  - metric_name: mssql_os_memory
+    type: gauge
+    help: 'OS memory breakdown (used/available) in GB.'
+    key_labels: [state]
+    values: [gb]
+    query: |
+      SELECT 'available' AS state, CAST(available_physical_memory_kb / 1024.0 / 1024.0 AS DECIMAL(10, 2)) AS gb
+      FROM sys.dm_os_sys_memory
+      UNION ALL
+      SELECT 'used' AS state, CAST((total_physical_memory_kb - available_physical_memory_kb) / 1024.0 / 1024.0 AS DECIMAL(10, 2)) AS gb
+      FROM sys.dm_os_sys_memory

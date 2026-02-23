@@ -1,0 +1,100 @@
+groups:
+- name: sql_server_alerts
+  rules:
+  # ============================================================================
+  # CRITICAL (P1) - Immediate Action Required
+  # ============================================================================
+  
+  - alert: SQLServerInstanceDown
+    expr: up{job="mssql"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "SQL Server Instance Down (instance {{ $labels.instance }})"
+      description: "SQL Exporter cannot connect to SQL Server instance."
+
+  - alert: SQLServerDatabaseOffline
+    expr: mssql_database_state > 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Database Offline (instance {{ $labels.instance }})"
+      description: "Database {{ $labels.db }} is not online (State: {{ $value }})."
+
+  - alert: SQLServerAgentStopped
+    expr: mssql_agent_status == 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "SQL Server Agent Stopped (instance {{ $labels.instance }})"
+      description: "SQL Server Agent service is not running."
+
+  - alert: SQLServerLogSpaceFull
+    expr: mssql_log_space_used_percent > 90
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Transaction Log Full (instance {{ $labels.instance }})"
+      description: "Transaction log for database {{ $labels.db }} is {{ $value }}% full."
+
+  - alert: SQLServerSevereBlocking
+    expr: mssql_blocking_session_count > 15
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Severe Blocking Detected (instance {{ $labels.instance }})"
+      description: "There are {{ $value }} blocked sessions on the instance."
+
+  # ============================================================================
+  # WARNING (P2) - Investigation Required
+  # ============================================================================
+
+  - alert: SQLServerHighDeadlockRate
+    expr: rate(mssql_deadlocks_total[5m]) > 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Deadlock Rate (instance {{ $labels.instance }})"
+      description: "Deadlock rate is {{ $value | printf \"%.2f\" }}/s (approx 1 per 10m)."
+
+  - alert: SQLServerMemoryPressure
+    expr: mssql_page_life_expectancy_seconds < 300
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Memory Pressure - Low PLE (instance {{ $labels.instance }})"
+      description: "Page Life Expectancy is low ({{ $value }}s). System may be under memory pressure."
+
+  - alert: SQLServerLongRunningQueries
+    expr: mssql_long_running_queries > 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Long Running Queries (instance {{ $labels.instance }})"
+      description: "{{ $value }} queries running longer than 30 seconds."
+
+  - alert: SQLServerBackupMissing
+    expr: mssql_backup_status != 1
+    for: 1h
+    labels:
+      severity: warning
+    annotations:
+      summary: "Backup Missing or Failed (instance {{ $labels.instance }})"
+      description: "Database {{ $labels.db }} has not had a successful Full backup in 24h."
+
+  - alert: SQLServerHighErrorRate
+    expr: rate(mssql_user_errors_total[5m]) > 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High User Error Rate (instance {{ $labels.instance }})"
+      description: "User error rate is {{ $value | printf \"%.2f\" }}/s."

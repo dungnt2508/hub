@@ -1,0 +1,197 @@
+version: '3.8'
+
+# ============================================
+# Catalog Service - Docker Compose
+# ============================================
+# Cách sử dụng:
+#   LOCAL (dùng chung infra):
+#     - Đảm bảo infra đã chạy: cd ../infra && docker-compose -f docker-compose.infra.yml up -d
+#       (Database gsnake1102 và user gsnake1102_user sẽ được tạo tự động khi infra khởi động lần đầu)
+#     - Chạy migration (lần đầu hoặc khi có schema mới):
+#       docker-compose --profile migrate up migrate
+#     - Chạy catalog: docker-compose up -d
+#     - Service sẽ tự động connect vào network shared_net từ infra
+#
+#   PRODUCTION (tách riêng):
+#     - Uncomment các service postgres, redis, pgadmin, redis-insight bên dưới
+#     - Comment phần external network
+#     - Chạy migration: docker-compose --profile migrate up migrate
+#     - Chạy: docker-compose up -d
+# ============================================
+
+services:
+  # ============================================
+  # Database Migration Service (runs once)
+  # ============================================
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: catalog_migrate
+    command: npm run migrate
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Ho_Chi_Minh
+      # LOCAL: Connect vào services từ infra
+      DB_HOST: hub_postgres
+      DB_PORT: 5432
+      DB_NAME: catalog_db
+      DB_USER: catalog_user
+      DB_PASSWORD: catalog_pw
+      DATABASE_URL: postgresql://catalog_user:catalog_pw@hub_postgres:5432/catalog_db
+      SEED_ON_START: "true"
+    networks:
+      - shared_net
+    restart: "no"  # Chỉ chạy một lần
+    profiles:
+      - migrate  # Chỉ chạy khi dùng profile migrate
+
+  # ============================================
+  # Backend API Service
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: catalog_backend
+    # Bỏ command để sử dụng ENTRYPOINT từ Dockerfile
+    volumes:
+      # Mount uploads directory để persist files
+      - ./docker_data/catalog/uploads:/app/uploads
+      # Mount source code cho development (optional - comment khi production)
+      # - ./backend/src:/app/src
+      # - ./backend/packages:/app/packages
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      TZ: Asia/Ho_Chi_Minh
+      # LOCAL: Connect vào services từ infra
+      # PRODUCTION: Có thể đổi hostname nếu dùng service riêng
+      DB_HOST: hub_postgres
+      DB_PORT: 5432
+      DB_NAME: catalog_db
+      DB_USER: catalog_user
+      DB_PASSWORD: catalog_pw
+      DATABASE_URL: postgresql://catalog_user:catalog_pw@hub_postgres:5432/catalog_db
+      REDIS_HOST: hub_redis
+      REDIS_PORT: 6379
+      # Note: JWT_SECRET và các env khác lấy từ .env file
+    networks:
+      - shared_net  # LOCAL: Dùng chung network từ infra
+      # - catalog_network  # PRODUCTION: Uncomment để dùng network riêng
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Note: depends_on không hoạt động với external services
+    # Đảm bảo infra services đã chạy trước khi start backend
+
+  # ============================================
+  # Infrastructure Services (chỉ dùng khi PRODUCTION)
+  # ============================================
+  # Uncomment các service dưới đây nếu muốn tách riêng infra cho production
+  # postgres:
+  #   image: pgvector/pgvector:pg16
+  #   container_name: catalog_postgres
+  #   environment:
+  #     POSTGRES_USER: gsnake1102_user
+  #     POSTGRES_PASSWORD: gsnake1102_pw
+  #     POSTGRES_DB: gsnake1102
+  #     TZ: Asia/Ho_Chi_Minh
+  #   command: postgres -c timezone='Asia/Ho_Chi_Minh'
+  #   volumes:
+  #     - ./docker_data/pgdata:/var/lib/postgresql/data
+  #   ports:
+  #     - "5433:5432"
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "pg_isready -U gsnake1102_user -d gsnake1102" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 30
+  #     start_period: 90s
+  #   networks:
+  #     - catalog_network
+  #   restart: unless-stopped
+  #   profiles:
+  #     - production
+
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: catalog_redis
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "6380:6379"  # Đổi port để tránh conflict với infra
+  #   healthcheck:
+  #     test: [ "CMD", "redis-cli", "ping" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - catalog_network
+  #   profiles:
+  #     - production
+
+  # pgadmin:
+  #   image: dpage/pgadmin4:9.10
+  #   container_name: catalog_pgadmin
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: gsnake6789@gmail.com
+  #     PGADMIN_DEFAULT_PASSWORD: gsnake6789
+  #     PGADMIN_CONFIG_SERVER_MODE: 'False'
+  #   volumes:
+  #     - ./docker_data/pgadmin_data:/var/lib/pgadmin
+  #   ports:
+  #     - "5051:80"  # Đổi port để tránh conflict
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - catalog_network
+  #   restart: unless-stopped
+  #   profiles:
+  #     - production
+
+  # redis-insight:
+  #   image: redis/redisinsight:2.44.0
+  #   container_name: catalog_redis_insight
+  #   ports:
+  #     - "8390:5540"  # Đổi port để tránh conflict
+  #   volumes:
+  #     - ./docker_data/redis_insight_data:/db
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - catalog_network
+  #   restart: unless-stopped
+  #   profiles:
+  #     - production
+
+networks:
+  # LOCAL: Dùng chung network từ infra
+  shared_net:
+    external: true
+    name: hub_shared_net
+  
+  # PRODUCTION: Uncomment để tạo network riêng
+  # catalog_network:
+  #   driver: bridge
+
+# volumes:
+#   # Chỉ cần khi chạy production với infra riêng
+#   # Uncomment khi cần dùng volumes cho production services
+#   # pgadmin_data:
+#   # redis_insight_data:
+#   # postgres_data:
+#   # redis_data:

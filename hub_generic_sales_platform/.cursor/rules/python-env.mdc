@@ -1,0 +1,28 @@
+---
+description: Python environment activation before running backend/Python commands
+globs: **/*.py, **/requirements*.txt, **/alembic*
+alwaysApply: false
+---
+
+# Python Environment
+
+Khi chạy Python, backend, hoặc lệnh liên quan (uvicorn, pytest, alembic, v.v.):
+
+1. **Luôn kích hoạt môi trường `Env3_12` trước**:
+
+   ```powershell
+   G:\project python\Env3_12\Scripts\activate
+   ```
+
+2. Hoặc thêm tiền tố cho mỗi lệnh:
+
+   ```powershell
+   G:\project python\Env3_12\Scripts\activate; cd "G:\project python\hub\hub_generic_sales_platform"; uvicorn app.main:app --reload
+   ```
+
+**Ví dụ**: Chạy backend đúng cách:
+```powershell
+G:\project python\Env3_12\Scripts\activate
+cd "G:\project python\hub\hub_generic_sales_platform"
+uvicorn app.main:app --reload
+```

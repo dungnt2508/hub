@@ -1,0 +1,43 @@
+select * from tenant;
+select * from bot;
+select * from bot_version;
+select * from bot_capability;
+select * from capability;
+select * from user_account;
+-- ----------- NHÓM 3 : Knowledge base
+-- ---------------------------------------------------------------------
+select * from attribute_definition;
+select * from product;
+select * from product_version;
+select * from product_attribute;
+select * from product_variant;
+
+select * from sales_channel;
+select * from price_list;
+select * from product_price;
+select * from variant_price;
+
+select * from inventory_location;
+select * from inventory_item;
+
+select * from use_case;
+select * from faq;
+
+select * from comparison;
+
+select * from semantic_cache;
+-- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
+-- drop schema
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+
+
+-- check port
+netstat -ano | findstr 5432
+
+-- cmd admin
+sc query | findstr /I postgres
+-> SERVICE_NAME: postgresql-x64-17
+
+-> stop : sc stop postgresql-x64-17

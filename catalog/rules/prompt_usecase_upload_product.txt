@@ -1,0 +1,33 @@
+Phân tích các flow hiện tại về upload và publish sản phẩm trên marketplace cho tất cả loại sản phẩm: 
+- workflow (ví dụ n8n workflow), 
+- tool, 
+- integration pack, 
+- website, 
+- mobile app. 
+
+Xem xét schema DB hiện tại (bảng product core + bảng con theo loại), backend routes, frontend pages, permissions, quy trình review, và các vấn đề pháp lý.  
+
+Với từng loại sản phẩm, xác định các artefact và metadata cần thiết để người mua có thể tải về và sử dụng trực tiếp, ví dụ:  
+- Workflow (n8n): workflow.json, .env.example, README.md, version, changelog, platform_requirement  
+- Tool: source code / ZIP, manifest, install script, .env.example, test scripts, version, changelog  
+- Integration Pack: connectors/schema, example workflows, manifest, docs, version, changelog  
+- Website: source ZIP, hướng dẫn deploy, screenshots, dependencies, platform, version  
+- Mobile App: APK/IPA, source code (nếu cung cấp), SDK/version, screenshots, hướng dẫn deploy  
+
+Xác định các điểm yếu, thiếu validation, mâu thuẫn, hoặc điểm dễ gây lỗi khi triển khai thực tế, bao gồm:  
+- Quyền sở hữu sản phẩm: đảm bảo người bán có quyền phân phối.  
+- Pháp lý: không vi phạm bản quyền, không chứa malware, tuân thủ luật thanh toán và thuế địa phương.  
+- Các rủi ro về dữ liệu nhạy cảm hoặc credential.  
+
+Dựa trên phân tích, đề xuất **revised flow** sao cho:  
+1. Giữ core flow: draft → pending_review → published.  
+2. Mỗi loại sản phẩm có metadata, artefact upload, validation phù hợp.  
+3. Bảng con theo loại sản phẩm rõ ràng, quan hệ đúng với bảng core product.  
+4. Backend API, middleware, audit log được tối ưu.  
+5. Frontend pages, services, CTA logic cho từng loại sản phẩm rõ ràng.  
+6. Quy trình review của admin/moderator có audit log đầy đủ, bao gồm kiểm tra quyền sở hữu và tuân thủ pháp lý.  
+7. Chỉ rõ rate-limiting, cache, error handling cần cải thiện.  
+
+Kết quả trả về gồm:  
+(A) Checklist các vấn đề / rủi ro / thiếu sót hiện tại, bao gồm sở hữu và pháp lý  
+(B) Flow chi tiết, step-by-step cho tất cả loại sản phẩm, sẵn sàng để dev triển khai

@@ -1,0 +1,12 @@
+global:
+  scrape_timeout_offset: 500ms
+  min_interval: 0s
+  max_connections: 5  # Increased from 3 to allow more breathing room under high load/multiple scrapers
+  max_idle_connections: 3
+
+target:
+  data_source_name: "sqlserver://user:pass@host:port"
+  collectors: [mssql_production]  # Only use the optimized production collector
+
+collector_files:
+  - "mssql_production.collector.yml"  # Path to the new clean collector file

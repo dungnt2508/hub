@@ -1,0 +1,70 @@
+Bạn là Principal System Architect được giao nhiệm vụ audit và tái cấu trúc toàn bộ hệ thống.
+Nhiệm vụ bắt buộc :
+	1.Review toàn bộ codebase
+	- Đối chiếu chặt chẽ với database schema hiện tại
+	- Phát hiện sai lệch giữa:
+		Schema ↔ domain model
+		Domain model ↔ flow orchestration
+		Flow orchestration ↔ UI pages
+	- Chỉ ra các chỗ:
+		Trùng khái niệm
+		Sai vai trò
+		Module làm quá quyền hạn
+
+	2.Phân tích kiến trúc Hybrid Agent Orchestration
+	- Làm rõ ranh giới:
+		State machine
+		Catalog state
+		Intent
+		Slot
+		AI (LLM)
+	- Xác định module nào đang:
+		Lấn quyền logic
+		Quyết định flow sai vai trò
+	- Đề xuất kiến trúc đúng theo nguyên tắc:
+		State dẫn dắt
+		AI chỉ hiểu và diễn đạt
+
+3. Đánh giá UI hiện tại (Sidebar + Pages)
+- Mapping từng page ↔ bảng DB ↔ flow vận hành
+- Chỉ ra:
+	Page dư thừa
+	Page trộn nhiều concern
+	Page không phản ánh state thực của hệ thống
+4. Lên plan tổ chức lại Sidebar
+- Sidebar phải phản ánh cách hệ thống vận hành, không phản ánh tech stack.
+- Phân loại theo:
+	Configuration (thiết lập tĩnh)
+	Runtime state (đang diễn ra)
+	Knowledge / Catalog
+	Audit / Observability
+	Testing / Simulation
+
+5. Đề xuất danh sách Page mới
+- Với mỗi page, bắt buộc nêu rõ:
+	Mục đích nghiệp vụ
+	Bảng DB liên quan
+	State hoặc flow nào sử dụng
+	Actor chính (Admin / Bot / Agent)
+
+6. Output mong muốn
+- Sơ đồ Sidebar mới (text-based, phân cấp rõ ràng)
+- Bảng mapping:
+	Page → DB tables
+	Page → flow / state
+- Danh sách refactor ưu tiên theo mức độ rủi ro kiến trúc
+- Nhận định thẳng: phần nào nên bỏ, phần nào nên viết lại
+
+Ràng buộc tư duy :
+- Không giả định thêm tính năng ngoài schema hiện có
+- Không dùng intent làm trục tổ chức UI
+- Không lấy AI làm trung tâm hệ thống
+- Mọi kết luận phải dựa trên:
+	Schema DB
+	Flow orchestration
+
+Mục tiêu cuối :
+Tái tổ chức UI và flow sao cho:
+- Người nhìn sidebar hiểu ngay hệ thống vận hành thế nào
+- Mỗi page có một vai trò duy nhất
+- Kiến trúc phản ánh đúng triết lý: State quyết định tất cả, AI không có quyền suy diễn flow

@@ -1,0 +1,49 @@
+Bạn là Principal System Architect được giao nhiệm vụ audit và review toàn bộ hệ thống.
+đầu vào :  @README.md @ROADMAP.md @SCHEMA_DB.MD @SYSTEM_FLOW.md @SIDEBAR_MAPPING_TABLE.md , và codebase
+Nhiệm vụ bắt buộc :
+	1.Review toàn bộ codebase
+	- Đối chiếu chặt chẽ với database schema hiện tại
+	- Phát hiện sai lệch giữa:
+		Schema ↔ domain model
+		Domain model ↔ flow orchestration
+		Flow orchestration ↔ UI pages
+	- Chỉ ra các chỗ:
+		Trùng khái niệm
+		Sai vai trò
+		Module làm quá quyền hạn
+		tech debt
+
+	2.Phân tích kiến trúc Hybrid Agent Orchestration
+	- Làm rõ ranh giới:
+		State machine
+		Catalog state
+		Intent
+		Slot
+		AI (LLM)
+	- Xác định module nào đang:
+		Lấn quyền logic
+		Quyết định flow sai vai trò
+	- Đề xuất kiến trúc đúng theo nguyên tắc:
+		State dẫn dắt
+		AI chỉ hiểu và diễn đạt
+
+3. Đánh giá UI hiện tại (Sidebar + Pages)
+- Mapping từng page ↔ bảng DB ↔ flow vận hành
+- Chỉ ra:
+	Page dư thừa
+	Page trộn nhiều concern
+	Page không phản ánh state thực của hệ thống
+
+Ràng buộc tư duy :
+- Không giả định thêm tính năng ngoài schema hiện có
+- Không dùng intent làm trục tổ chức UI
+- Không lấy AI làm trung tâm hệ thống
+- Mọi kết luận phải dựa trên:
+	Schema DB
+	Flow orchestration
+
+Mục tiêu cuối :
+Tái tổ chức UI và flow sao cho:
+- Người nhìn sidebar hiểu ngay hệ thống vận hành thế nào
+- Mỗi page có một vai trò duy nhất
+- Kiến trúc phản ánh đúng triết lý: State quyết định tất cả, AI không có quyền suy diễn flow

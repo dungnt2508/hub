@@ -1,0 +1,4 @@
+Generic single-database configuration with an async dbapi.
+
+Alembic will use the connection string in the alembic.ini file
+(which imports from environment variable / .env file).

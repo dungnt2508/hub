@@ -1,0 +1,35 @@
+System: Bạn là trợ lý lập trình, nhiệm vụ là xây dựng dự án web cá nhân hóa bot cho từng user. 
+Yêu cầu:
+
+1. Kiến trúc:
+   - Frontend: Next.js + TypeScript + TailwindCSS
+   - Backend: Node.js (Fastify/Express)
+   - Database: PostgreSQL + Redis
+   - Workflow automation: n8n
+   - LLM provider: OpenAI
+
+2. Tính năng:
+   - Login/register, login bằng Azure OAuth
+   - Persona per-user: tone, ngữ điệu, sở thích, topics_interest
+   - Tóm tắt bài báo theo URL
+   - Tóm tắt theo lịch trình/tần suất user
+   - Hộp thư nhận request tạo tool modular
+   - Streaming token trong chat
+   - Lưu metadata và lịch sử workflow
+   - Rate limit và quota user
+
+3. Backend structure:
+   - API routes: handle request, call service layer
+   - Services: persona injection, call LLM, manage workflow
+   - Repositories: DB access, CRUD operations
+   - Scheduler/queue: n8n workflows cho fetch và tool generation
+
+4. Database schema:
+
+   - đọc database schema trong file database.md
+
+5. Output mong muốn:
+   - Generate project skeleton với file/folder structure
+   - Tạo các endpoint cơ bản và service templates
+   - Tạo seed schema DB
+   - Có comment hướng dẫn mở rộng tool mới modular

@@ -1,0 +1,99 @@
+tái cấu trúc Backend sang mô hình Clean Architecture (Hexagonal).
+
+Đây là một bước chuyển mình quan trọng để hệ thống của bạn sẵn sàng cho việc mở rộng và thương mại hóa chuyên nghiệp.
+
+Các thay đổi chính:
+Core Domain (Lõi business):
+    Toàn bộ Model đã được đưa vào app/core/entities.
+    Các "Cổng" (Ports) đã được định nghĩa tại app/core/interfaces. Đây là nơi quy định Bot "cần gì" (ví dụ: cần lưu session, cần tìm FAQ) mà không quan tâm "làm như thế nào".
+Application Layer (Tầng ứng dụng):
+    HybridOrchestrator và AgentOrchestrator đã được đưa về app/application/orchestrators. Đây là "bộ não" điều phối quy trình xử lý.
+Infrastructure Layer (Tầng hạ tầng):
+    Toàn bộ Repository đã được chuyển vào app/infrastructure/database và refactor sang Async 100%.
+    Chúng thực thi các Interface của Domain, giúp bạn có thể dễ dàng thay đổi Database sau này.
+
+Sự kiện này giúp code cực kỳ sạch, dễ viết Unit Test và bảo vệ logic kinh doanh khỏi sự thay đổi của công nghệ.
+
+--------------------------------------------------------------------------------------------------------------------------
+
+Cấu trúc hiện tại:
+app/
+    Core: Thực thể & Giao diện (Entities & Ports).
+    Application: Điều phối nghiệp vụ (Orchestrators & Services).
+    Infrastructure: Triển khai kỹ thuật (Database & Adapters).
+    Interfaces: Giao tiếp bên ngoài (API & Middleware).
+
+-------------------------------------------------------------------------------------------------------------------------
+
+Tôi đã hoàn thiện toàn bộ logic cho bộ não điều phối HybridOrchestrator theo tiêu chuẩn 2026.
+
+Các điểm sáng trong bản phát hành này:
+Chiến lược 3 tầng tự động (Fully Async):
+    Tier 1 (Fast Path): Tự động nhận diện xã giao (chào hỏi, tạm biệt) qua Regex. Chi phí: $0.
+    Tier 2 (Knowledge Path): Tích hợp SemanticCacheRepository (tra cứu bộ nhớ đệm) và FAQRepository. Nếu tìm thấy, phản hồi ngay với chi phí siêu rẻ (~$0.0001).
+    Tier 3 (Agentic Path): Nếu 2 tầng trên không xử lý được, hệ thống sẽ gọi AgentOrchestrator để suy luận phức tạp.
+
+Hệ thống Quan sát (Observability) thời gian thực:
+Mỗi tin nhắn xử lý xong sẽ tự động ghi một DecisionEvent vào database.
+Ghi lại chính xác: Tier nào đã xử lý, Chi phí ước tính ($), và Độ trễ (ms).
+Tối ưu hiệu năng:
+Sử dụng Semantic Cache Hit Tracking: Tự động đếm số lần và thời gian cuối cùng Cache được sử dụng để bạn biết nội dung nào hiệu quả nhất.
+Toàn bộ code đã chuyển sang Async/Await, sẵn sàng chịu tải hàng nghìn session cùng lúc.
+Giờ đây, Bot của bạn không chỉ thông minh mà còn cực kỳ tối ưu về kinh tế. Bạn có muốn tôi thực hiện một bài Integration Test để mô phỏng luồng tin nhắn đi qua cả 3 tầng này không?
+
+-------------------------------------------------------------------------------------------------------------------------
+
+Hợp nhất core/ vào app/core/ và cập nhật toàn bộ import.
+Khôi phục nội dung và sửa lỗi hiển thị tiếng Việt (Unicode) trong các module shared (logger, exceptions, base_entity, ...).
+Cập nhật dữ liệu mẫu kiến thức tập trung vào mảng AI Chatbot và Automation.
+Kiểm thử thành công luồng Hybrid Orchestration 3 tầng.
+
+-------------------------------------------------------------------------------------------------------------------------
+
+Tier 2: Đã thêm Vector Search fallback và Confidence threshold.
+Tier 3: Đã triển khai Dynamic Tool Calling (Think-Act-Observe) giúp Agent tự động chọn công cụ (như compare_products).
+
+-------------------------------------------------------------------------------------------------------------------------
+cover testcase
+Gửi lịch sử hội thoại: Giúp bot hiểu các tham chiếu ngược (như "gói đó", "cái kia").
+Multi-step Reasoning: Cho phép Agent tự động gọi nhiều tool liên tiếp để giải quyết yêu cầu phức tạp.
+Role Awareness: Bot đã nhận biết được vai trò người dùng (Admin/Customer) để phản hồi phù hợp.
+
+
+-------------------------------------------------------------------------------------------------------------------------
+triển khai xong tính năng Quản lý Capabilities cho Bot theo đúng kế hoạch.
+
+Các cải tiến đã thực hiện:
+
+Quản lý tập trung trong Modal Version: Giờ đây, trong modal Manage Versions, bạn sẽ thấy cột Capabilities với các nút bấm tương ứng cho từng tính năng (SEARCH, RECOMMEND, AUTOMATE, CRAWL).
+Bật/Tắt linh hoạt: Bạn có thể click trực tiếp vào các nút này để bật hoặc tắt tính năng cho phiên bản bot đó. Hệ thống sẽ ngay lập tức cập nhật vào cơ sở dữ liệu.
+Hiển thị trực quan: Các tính năng đang bật sẽ có màu vàng (accent color), tính năng tắt sẽ mờ đi. Các thay đổi cũng sẽ được phản ánh ngay lập tức trên bảng danh sách bot chính và phần thống kê.
+Backend tối ưu: Đã bổ sung cơ chế eager loading để đảm bảo dữ liệu được tải nhanh nhất có thể.
+
+------------------------------------------------------------
+28/1/26 :
+Nâng cấp hệ thống Catalog V4 toàn diện, bao gồm cả Backend API, Frontend UI và khả năng tích hợp linh hoạt cho AI Agent, refactor test folder. Dưới đây là tóm tắt các thay đổi quan trọng:
+
+- 1. Backend: Catalog API V4 & Logic Nghiệp vụ
+    Catalog Service: Triển khai CatalogService để hợp nhất dữ liệu từ nhiều bảng (Product, Version, Price, Inventory).
+    -> Đây là "Source of Truth" duy nhất cho cả Admin UI và AI Agent.
+    Unified API Endpoints:
+        GET /catalog/products: Trả về danh sách sản phẩm kèm giá hiện hành và tồn kho tổng hợp.
+        GET /catalog/inventory/status: Truy vấn trực tiếp từ inventory_status_view để báo cáo tình trạng kho chính xác theo thời gian thực.
+        POST /catalog/products/{id}/publish: Cơ chế kích hoạt phiên bản nội dung (Versioning).
+    RAG Enhancement: Thêm cột embedding vào ProductVersion để hỗ trợ tìm kiếm ngữ nghĩa trên nội dung sản phẩm mà không bị nhiễu bởi dữ liệu giá/kho thường xuyên thay đổi.
+- 2. Frontend: Giao diện Quản trị Hiện đại
+    Multi-Tab Editor: Giao diện trang Catalog được nâng cấp với hệ thống Tab chuyên sâu:
+    Details: Quản lý thông tin cơ bản và mô tả marketing.
+    Versions: Theo dõi lịch sử thay đổi và xuất bản bản thảo (Draft).
+    Pricing: Thiết lập giá đa kênh (Web, Zalo) với khả năng tự động áp dụng giá Promo.
+    Stock: Theo dõi tồn kho chi tiết tại từng kho hàng/chi nhánh.
+    Variants (SKU): Quản lý các mã hàng lẻ của sản phẩm.
+    API Service: Cập nhật apiService.ts với đầy đủ các Interface TypeScript mới, đảm bảo tính an toàn dữ liệu (Type-safety).
+- 3. AI Agent Integration
+Refactor Agent Tools: Cập nhật CatalogStateHandler để Agent sử dụng định dạng dữ liệu V4.
+Giờ đây, khi khách hàng hỏi về giá hoặc tồn kho, Agent sẽ gọi Tool để lấy dữ liệu "thực" từ database thay vì trả lời dựa trên thông tin cũ trong Vector DB.
+Tool Scoping: Các công cụ search_products và get_product_details hiện đã hỗ trợ lấy thông tin hợp nhất từ CatalogService
+.
+- 4. refactor test folder
+- 5. fix bug page catalog

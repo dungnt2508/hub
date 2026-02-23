@@ -1,0 +1,19 @@
+-- init 
+npx create-next-app@latest --help
+-- initfolder
+npx -y create-next-app@latest frontend --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --no-git --yes
+
+fix 26/1/2026
+-- Cleaning up root and providing standard run scripts.
+rm package-lock.json
+
+-- Cách chạy dự án từ bây giờ:
+
+- Lựa chọn 1 (Khuyên dùng): Chạy lệnh sau từ thư mục gốc để khởi động cả Backend và Frontend cùng lúc:
+
+cd D:\project python\hub\bot_v4
+npm run dev
+- Lựa chọn 2 (Chạy riêng lẻ):
+
+Frontend: cd frontend && npm run dev
+Backend: python -m uvicorn app.main:app --reload --port 8386

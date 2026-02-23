@@ -1,0 +1,17 @@
+Dưới đây là một số Tool thực tế và "quyền lực" mà chúng ta nên bổ sung để biến Bot từ một người tư vấn thành một Agent thực thụ:
+
+1. Nhóm Chốt đơn & Lead (Conversion)
+register_lead: Khi khách hàng có vẻ quan tâm (sau khi đã so sánh sản phẩm), Agent tự động bóc tách Tên, SĐT, Nhu cầu và lưu vào Database hoặc bắn sang CRM/Google Sheets.
+calculate_roi: Tool này cực kỳ hữu ích cho Bot bán giải pháp n8n/Automation. Agent hỏi người dùng "Một ngày bạn có bao nhiêu tin nhắn?" -> Gọi Tool tính toán số tiền tiết kiệm được hàng tháng nếu dùng chatbot.
+2. Nhóm Tương tác Hệ thống (Integration)
+trigger_web_hook: Công cụ vạn năng. Agent có khả năng gọi trực tiếp một Webhook của n8n hoặc Make.com.
+Ví dụ: Khách nói "Gửi cho tôi tài liệu giải pháp AI qua email", Agent gọi tool này để n8n bắt đầu flow gửi email tự động.
+check_service_availability: Giúp Agent kiểm tra xem một sản phẩm/dịch vụ còn "Slot" triển khai trong tháng này không (truy vấn thời gian thực).
+3. Nhóm Cá nhân hóa (Context & Memory)
+update_user_context: Cho phép Agent tự ghi nhớ sở thích khách hàng vào trường ext_metadata.
+Ví dụ: Nếu khách nói "Tôi chỉ ưu tiên giải pháp Open-source", Agent gọi tool này để ghi chú lại. Lần sau khách hỏi "Nên dùng gì?", Agent sẽ tự biết loại bỏ các dịch vụ trả phí cao.
+4. Nhóm Hỗ trợ & Vận hành (Support)
+search_knowledge_faq: Hiện tại FAQ đang ở Tier 2 (Static). Nếu mang lên Tier 3 làm Tool, Agent có thể kết hợp thông tin FAQ với thông tin Sản phẩm để tạo ra câu trả lời tổng hợp (Summarized) thay vì chỉ trả về 1 câu FAQ đơn lẻ.
+escalate_to_human: Khi Agent thấy khách hàng đang giận dữ hoặc yêu cầu quá phức tạp, nó chủ động gọi Tool này để đánh dấu Session cần "Human Intervention" và thông báo cho Admin qua Telegram/Zalo.
+5. Nhóm Phân tích (Analytics)
+get_product_trending: Agent xem database để biết sản phẩm nào đang được quan tâm nhiều nhất trong tuần, từ đó đưa ra gợi ý: "Dạo này các doanh nghiệp giống bạn thường chọn gói n8n Lead Gen nhất."

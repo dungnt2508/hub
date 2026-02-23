@@ -1,0 +1,7 @@
+-- full flow
+pytest tests/test_sprint2_integration.py::TestEndToEndFlow::test_full_flow_success -v
+
+-- test khả năng giữ ngữ cảnh
+pytest tests/test_sprint2_integration.py::TestContextRetention -v
+pytest tests/test_sprint2_integration.py::TestContextRetention::test_reference_cheaper_product -v
+pytest tests/test_sprint2_integration.py::TestContextRetention::test_reference_previous_product -v

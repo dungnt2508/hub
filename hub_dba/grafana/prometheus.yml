@@ -1,0 +1,95 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Windows Exporter - DEV
+  - job_name: 'windows-exporter-dev'
+    static_configs:
+      - targets: ['localhost:8081']
+        labels:
+          environment: 'development'
+          tier: 'dev'
+          role: 'dev'
+
+  # Windows Exporter - PROD
+  - job_name: 'windows-exporter-prod'
+    static_configs:
+      - targets: ['192.168.3.60:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJGATEWAY', role: 'gw' }
+      - targets: ['192.168.3.61:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJGATEWAY-02', role: 'gw' }
+      - targets: ['192.168.3.6:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'REPORT01', role: 'ssrs' }
+      - targets: ['192.168.3.27:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DATAMODEL', role: 'ssas' }
+      - targets: ['192.168.3.28:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DATAMODELSS', role: 'ssas' }
+      - targets: ['192.168.1.28:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'SRVSQL02', role: 'oltp' }
+      - targets: ['192.168.11.8:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DPM-DB-01', role: 'mirror' }
+      - targets: ['192.168.11.9:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DPM-DB-02', role: 'primary' }
+      - targets: ['192.168.11.150:8081']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DPM-DB-DR', role: 'log' }
+
+  # SQL Exporter - DEV
+  - job_name: 'sql-exporter-dev'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['192.168.5.8:9399']
+        labels:
+          environment: 'development'
+          tier: 'dev'
+          hostname: 'DevSQL'
+          role: 'oltp'
+
+  # SQL Exporter - PROD
+  - job_name: 'sql-exporter-prod'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['192.168.12.7:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJ-SV-KHDB', role: 'oltp' }
+      - targets: ['192.168.5.41:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJP-DWH-UAT', role: 'oltp' }
+      - targets: ['192.168.3.30:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'SRVSSAS', role: 'oltp' }
+      - targets: ['192.168.7.3:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'HRIS_APP02', role: 'oltp' }
+      - targets: ['192.168.3.7:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'REPORT02', role: 'oltp' }
+      - targets: ['192.168.3.31:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DW_PRO', role: 'oltp' }
+      - targets: ['192.168.1.1:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJSERVER', role: 'oltp' }
+      - targets: ['192.168.1.10:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'SRV-GIAVANG', role: 'oltp' }
+      - targets: ['192.168.1.27:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'SRVSQL01', role: 'oltp' }
+      - targets: ['192.168.12.15:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'SRV-SC-03', role: 'oltp' }
+      - targets: ['192.168.12.41:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJP-DWH', role: 'oltp' }
+      - targets: ['192.168.11.43:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PNJP-GEMBA-DB', role: 'oltp' }
+      - targets: ['192.168.3.10:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'DATASQL', role: 'oltp' }
+      - targets: ['192.168.2.24:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'QLXM-UAT-DB', role: 'oltp' }
+      - targets: ['192.168.11.90:9399']
+        labels: { environment: 'production', tier: 'prod', hostname: 'PRD-EO-DB-01', role: 'oltp' }

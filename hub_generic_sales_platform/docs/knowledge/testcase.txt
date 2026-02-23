@@ -1,0 +1,134 @@
+Bộ test đánh giá chatbot thông minh (tập trung giữ ngữ cảnh + năng lực cốt lõi):
+
+1. Test giữ ngữ cảnh (Context Retention)
+
+Test 1: Tham chiếu ngược
+
+User: Tôi muốn mua gói Pro
+
+Bot: Gói Pro có giá 299k/tháng
+
+User: Gói đó có giới hạn người dùng không
+→ Bot phải hiểu “gói đó” = Pro
+
+Test 2: Ngữ cảnh dài
+
+User hỏi A → B → C
+
+Quay lại hỏi A
+→ Bot vẫn nhớ A, không reset
+
+Test 3: Thay đổi chủ đề rồi quay lại
+
+Sản phẩm → đơn hàng → sản phẩm
+→ Không nhầm dữ liệu
+
+2. Test ghi nhớ tạm thời (Short-term Memory)
+
+User cung cấp: email / mã đơn
+
+Sau 2–3 lượt hội thoại
+→ Bot vẫn dùng đúng thông tin, không hỏi lại
+
+3. Test phân biệt ý định (Intent Disambiguation)
+
+“Giá bên mình sao”
+→ Giá sản phẩm nào
+→ Bot hỏi làm rõ đúng chỗ, không đoán bừa
+
+4. Test xử lý ngôn ngữ tự nhiên (NLP Robustness)
+
+Chính tả sai
+
+Viết tắt
+
+Câu cụt
+
+Trộn Anh–Việt
+
+→ Bot vẫn suy luận đúng intent
+
+5. Test chuyển ngữ cảnh vai trò
+
+User hỏi như khách hàng
+
+Sau đó hỏi như nhân viên nội bộ
+→ Bot đổi knowledge base đúng
+
+6. Test logic hội thoại (Conversation Logic)
+
+Câu trả lời sau phải phụ thuộc câu trước
+
+Không trả lời độc lập từng message
+
+Không lặp lại thông tin đã nói
+
+7. Test fallback thông minh
+
+Câu hỏi ngoài scope
+→ Bot từ chối đúng
+→ Gợi ý hướng hợp lệ
+→ Không bịa
+
+8. Test giới hạn kiến thức
+
+Hỏi thông tin không tồn tại
+→ Bot thừa nhận không biết
+→ Không “hallucinate”
+
+9. Test xử lý cảm xúc (Sentiment Detection)
+
+User khó chịu / gắt
+→ Bot giữ trung lập
+→ Không tranh luận
+→ Ưu tiên giải quyết vấn đề
+
+10. Test escalation (chuyển người)
+
+Lặp fallback ≥ 2
+
+Khiếu nại nghiêm trọng
+→ Chuyển đúng thời điểm
+→ Đính kèm full context
+
+11. Test đa lượt quyết định (Multi-step Reasoning)
+
+User cung cấp thông tin từng phần
+→ Bot tổng hợp
+→ Đưa ra kết luận nhất quán
+
+12. Test bảo mật & quyền hạn
+
+User thường hỏi dữ liệu nội bộ
+→ Bot từ chối
+
+User nội bộ hỏi
+→ Bot trả lời
+
+13. Test tính nhất quán (Consistency)
+
+Cùng câu hỏi, khác thời điểm
+→ Câu trả lời không mâu thuẫn
+
+Khác wording, cùng intent
+→ Cùng kết quả
+
+14. Test hiệu suất hội thoại
+
+Câu trả lời ngắn
+
+Không lan man
+
+Không hỏi thừa
+
+Chatbot đạt yêu cầu khi:
+
+Nhớ đúng, quên đúng
+
+Hiểu ý, không đoán
+
+Giữ ngữ cảnh, không lẫn
+
+Biết dừng, biết chuyển
+
+Không cố tỏ ra thông minh

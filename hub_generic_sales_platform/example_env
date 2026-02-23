@@ -1,0 +1,98 @@
+# ==================== ENV ====================
+ENVIRONMENT=dev
+DEBUG=true
+
+# ==================== APP ====================
+APP_NAME=Bot V4
+APP_VERSION=1.0.0
+TITLE=Title_Bot
+DESCRIPTION = Desc_Bot
+
+HOST=0.0.0.0
+PORT=8386
+RELOAD=false
+
+# ==================== CORS ====================
+# For production, update to: https://yourdomain.com
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:8387
+
+# ==================== DATABASE ====================
+DATABASE_URL=postgresql+asyncpg://bot_user:bot_pw@localhost:5432/bot_v4
+SYNC_URL=postgresql+psycopg://bot_user:bot_pw@localhost:5432/bot_v4
+#DATABASE_URL=postgresql+asyncpg://bot_user:bot_pw@hub_postgres/bot_v4
+#SYNC_URL=postgresql+psycopg://bot_user:bot_pw@hub_postgres/bot_v4
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+DB_POOL_TIMEOUT=30
+
+# ==================== REDIS ====================
+REDIS_URL=redis://localhost:6379/0
+REDIS_MAX_CONNECTIONS=50
+
+# ==================== SESSION ====================
+SESSION_TTL_SECONDS=2592000
+SESSION_CACHE_TTL=300
+
+# ==================== ROUTER ====================
+MAX_MESSAGE_LENGTH=5000
+
+ENABLE_PATTERN=true
+ENABLE_KEYWORD=true
+ENABLE_EMBEDDING=true
+ENABLE_LLM_FALLBACK=true
+
+EMBEDDING_THRESHOLD=0.8
+LLM_THRESHOLD=0.65
+
+# ==================== AI ROUTING ====================
+AI_PROVIDER_PRIMARY=litellm
+AI_PROVIDER_FALLBACK=openai
+
+# ==================== LLM ROUTER ====================
+LLM_TIMEOUT=30
+LLM_TEMPERATURE=0.3
+
+# ==================== LITELLM ====================
+LITELLM_API_BASE=https://ai-proxy.pnj.ai
+LITELLM_API_KEY=
+LITELLM_CHAT_MODEL=gpt-4o-mini
+LITELLM_EMBEDDING_MODEL=text-embedding-3-small
+
+# ==================== OPENAI (FALLBACK) ====================
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_KEY=
+OPENAI_CHAT_MODEL=gpt-3.5-turbo
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+
+# ==================== EMBEDDING ====================
+EMBEDDING_PROVIDER=openai
+EMBEDDING_CACHE_TTL=86400
+
+# ==================== LOGGING ====================
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+LOG_FILE_ENABLED=False
+LOG_FILE_PATH=logs/app.log
+LOG_FILE_MAX_BYTES=10485760
+LOG_FILE_BACKUP_COUNT=5
+
+# ==================== FEATURE FLAGS ====================
+FEATURE_EMBEDDING_CLASSIFIER=true
+FEATURE_LLM_CLASSIFIER=true
+
+# ==================== AUTHENTICATION ====================
+# JWT Configuration (shared với Catalog service)
+JWT_SECRET=sumy2!@$%^&*3!@$%^&*1!@$%^&*2@2!@$%^&*
+JWT_ALGORITHM=HS256
+JWT_EXPIRES_IN=7d
+
+# Enable/Disable auth methods
+ENABLE_JWT_AUTH=true
+ENABLE_API_KEY_AUTH=false
+ENABLE_OAUTH_AUTH=false
+
+
+# ==================== DBA DOMAIN ====================
+DB_CONNECTION_ENCRYPTION_KEY=Sc8wPa8Z6Au-F0pMlI_JdQW0FiipJQxOxeOwx6JZ2_U=
+MCP_DB_SERVER_URL=http://localhost:8387

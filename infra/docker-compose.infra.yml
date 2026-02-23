@@ -1,0 +1,118 @@
+version: '3.8'
+
+# ============================================
+# Infrastructure Services - Dùng chung cho local
+# ============================================
+# Cách sử dụng:
+#   Local: docker-compose -f docker-compose.infra.yml up -d
+#   Sau đó các service khác sẽ connect vào network shared_net
+# ============================================
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: hub_postgres
+    environment:
+      POSTGRES_USER: bot_user
+      POSTGRES_PASSWORD: bot_pw
+      POSTGRES_DB: bot_v4  # Database mặc định cho bot service
+      TZ: Asia/Ho_Chi_Minh
+    command: postgres -c timezone='Asia/Ho_Chi_Minh'
+    volumes:
+      - ./docker_data/pgdata:/var/lib/postgresql/data
+      # Init script để tạo database cho catalog service
+      - ./init:/docker-entrypoint-initdb.d
+    networks:
+      - shared_net
+    ports:
+      - "5432:5432"   # chỉ expose nếu cần debug
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot_user -d bot_v4"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: hub_redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - ./docker_data/redis_data:/data
+    ports:
+      - "6379:6379"   # chỉ expose nếu cần
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shared_net
+    restart: unless-stopped
+
+  # pgAdmin (Database management tool)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: hub_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@n8nmarket.com.vn
+      PGADMIN_DEFAULT_PASSWORD: gsnake6789
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - ./docker_data/pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shared_net
+    restart: unless-stopped
+
+  # Redis Insight (Redis management tool)
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: hub_redis_insight
+    ports:
+      - "8389:5540"
+    volumes:
+      - ./docker_data/redis_insight_data:/db
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - shared_net
+    restart: unless-stopped
+
+#  qdrant:
+#    image: qdrant/qdrant:latest
+#    container_name: hub_qdrant
+#    ports:
+#      - "6333:6333"  # HTTP API
+#      - "6334:6334"  # gRPC
+#    volumes:
+#      - ./docker_data/qdrant_data:/qdrant/storage
+#    networks:
+#      - shared_net
+#    restart: unless-stopped
+#    ulimits:
+#      nofile:
+#        soft: 65536
+#        hard: 65536
+#    # Healthcheck được thực hiện bởi backend thông qua API
+#    # Backend sẽ check Qdrant health tại /api/v1/health endpoint
+
+networks:
+  shared_net:
+    name: hub_shared_net
+    driver: bridge
+
+volumes:
+  hub_postgres_data:
+  hub_redis_data:
+  hub_redis_insight_data:
+#  hub_qdrant_data:
+  hub_pgadmin_data:
+  # hub_prometheus_data:
+  # hub_grafana_data:
