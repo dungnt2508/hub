@@ -1,6 +1,6 @@
-# Agentic Sales Platform 2026
+# Nền Tảng Bán Hàng Đa Năng (Generic Sales Platform)
 
-> **Hệ thống Sales Bot thông minh cho Thương mại điện tử & Dịch vụ**
+> **Agentic Sales Platform** — Hệ thống Sales Bot thông minh cho Thương mại điện tử & Dịch vụ
 >
 > *Rẻ - Nhanh - Khôn*
 
@@ -14,104 +14,113 @@
 
 ## Tổng quan
 
-**Agentic Sales Platform** là nền tảng AI Sales Orchestration thế hệ mới, được thiết kế để tự động hóa toàn bộ quy trình bán hàng - từ tư vấn, so sánh đến chốt đơn.
+**Agentic Sales Platform** không chỉ là chatbot bán hàng thông thường. Đây là **Nền tảng Bán hàng Đa năng (Generic Sales Platform)** thiết kế linh hoạt cho mọi quy trình chuyển đổi — từ bán lẻ đơn giản đến dịch vụ giá trị cao (bất động sản, ô tô, tài chính).
 
-### Điểm khác biệt chính
-- **Rẻ**: Kiến trúc Hybrid 3 tầng tối ưu chi phí gọi LLM xuống **90%** so với chatbot thông thường
-- **Nhanh**: Fast Path xử lý tức thì < 50ms, Knowledge Path < 500ms
-- **Khôn**: Agentic Reasoning cho phép bot suy luận đa bước, tự chọn công cụ phù hợp
+=> **Điểm linh hoạt ăn tiền:** Hệ thống áp dụng mô hình **Offering-Centric** — không bắt buộc SKU hay giỏ hàng cố định. Nạp cấu hình ontology mới là Bot tự hiểu sản phẩm, không cần sửa code.
+
+### Ba trụ cột
+
+| Trụ | Mô tả |
+|-----|-------|
+| **Rẻ** | Kiến trúc Hybrid 3 tầng giảm ~50–70% chi phí LLM so với chatbot gọi AI mọi câu |
+| **Nhanh** | Fast Path < 50ms, Knowledge Path < 500ms |
+| **Khôn** | Agentic Reasoning + State Machine — Bot suy luận đa bước, chọn Tool theo trạng thái |
 
 ---
 
 ## Tài liệu hệ thống
 
-### Bắt đầu nhanh
-- [Roadmap](docs/CANON/ROADMAP.md) - Kế hoạch phát triển & chiến lược
+### Bắt đầu
 
-### Kiến trúc
-- [Backend Architecture](docs/CANON/backend_architecture.md) - Kiến trúc Clean Architecture + Async
-- [Frontend Architecture](docs/CANON/frontend_architecture.md) - Next.js App Router & Component Design
-- [Database Schema](docs/CANON/SCHEMA_DB.MD) - Thiết kế Schema đa tenant
-- [System Flow](docs/CANON/SYSTEM_FLOW.md) - Luồng xử lý dữ liệu end-to-end
-- [Architectural Review](docs/CANON/architectural_review.md) - Đánh giá kiến trúc tổng thể
+- [ROADMAP](docs/CANON/ROADMAP.md) — Kế hoạch phát triển
 
-### Domain & Logic
-- [Generic Sales Platform](docs/CANON/generic_sales_platform.md) - Giải thích mô hình Offering-Centric
-- [Domain Model](docs/CANON/domain/about_domain.md) - Domain Entities & Business Logic
-- [State Machine Guide](docs/CANON/pages/state_machine/STATE_MACHINE_GUIDE.md) - Cách hoạt động của State Machine
-- [Runtime Flow](docs/CANON/runtime_flow/flow.md) - Luồng xử lý runtime chi tiết
+### Kiến trúc lõi
 
-### Bảo mật & Xác thực
-- [Authentication Proposal](docs/CANON/authentication_proposal.md) - Đề xuất hệ thống Auth JWT-based
+- [Generic Sales Platform](docs/CANON/generic_sales_platform.md) — Mô hình Offering-Centric, Context Slots, Lifecycle States
+- [Backend Architecture](docs/CANON/backend_architecture.md) — Clean Architecture, 3-tier, State Machine
+- [Frontend Architecture](docs/CANON/frontend_architecture.md) — Next.js App Router, Generative UI
+- [System Flow](docs/CANON/SYSTEM_FLOW.md) — Luồng xử lý end-to-end
+- [Runtime Flow](docs/CANON/runtime_flow.md) — Luồng dữ liệu runtime, bảng `runtime_*`
+- [State Machine Guide](docs/CANON/STATE_MACHINE_GUIDE.md) — 13 trạng thái vòng đời, Tool scoping
 
-### Giao diện & UX
-- [Frontend Design](docs/CANON/frontend_design.md) - Nguyên tắc thiết kế UI/UX
-- [Page Features](docs/CANON/pages/PAGE_FEATURES.md) - Chức năng từng trang
-- [Development Priority](docs/CANON/pages/DEVELOPMENT_PRIORITY.md) - Độ ưu tiên phát triển
+### Schema & Logic
 
-### Audit & Báo cáo
-- [Comprehensive Runtime Audit](docs/CANON/report/comprehensive_runtime_audit.md) - Audit chi tiết logic runtime
-- [Feasibility Report](docs/CANON/report/feasibility_report.md) - Đánh giá tính khả thi thương mại
-- [Runtime Fix Plan](docs/CANON/report/runtime_fix_plan.md) - Kế hoạch sửa các lỗi runtime
-- [Walkthrough](docs/CANON/report/walkthrough.md) - Hướng dẫn kiểm thử sau fix
+- [Database Schema](docs/CANON/SCHEMA_DB.MD) — Thiết kế đa tenant
+- [Domain Model](docs/knowledge/domain/about_domain.md) — Entity và logic nghiệp vụ
 
-### Migration & Scraping
-- [Migration Strategy](docs/CANON/migration_plan/migration_strategy.md) - Chiến lược di chuyển dữ liệu
-- [AI Scraper Guide](docs/CANON/migration_plan/ai_scraper_guide.md) - Hướng dẫn sử dụng AI Scraper
-- [Real Scraper Plan](docs/CANON/migration_plan/real_scraper_plan.md) - Kế hoạch scraper thực tế
+### Thiết kế & Phát triển
 
-### Use Cases / Scenarios
-- [Finance - Unsecured Loan](docs/CANON/scenarios/finance_unsecured_loan.md)
-- [Real Estate - High Ticket](docs/CANON/scenarios/high_ticket_real_estate.md)
-- [Automotive - Used Car Sales](docs/CANON/scenarios/used_car_sales.md)
-- [Education - Admissions](docs/CANON/scenarios/education_admissions.md)
+- [Frontend Design](docs/CANON/frontend_design.md) — Nguyên tắc G-UI, Glassmorphism
+- [Page Features](docs/knowledge/pages/PAGE_FEATURES.md) — Chức năng từng trang
+- [Architectural Review](docs/CANON/architectural_review.md) — Đánh giá kiến trúc
 
-### Q&A & Tech Debt
-- [QA Documentation](docs/CANON/QA.md) - Câu hỏi thường gặp
-- [Tech Debt Analysis](docs/NOTE/tech_debt_analysis.md) - Phân tích nợ kỹ thuật
+### Bảo mật & Auth
+
+- [Authentication Proposal](docs/knowledge/authentication_proposal.md) — Đề xuất JWT-based
+
+### Báo cáo & Kế hoạch
+
+- [Comprehensive Runtime Audit](docs/knowledge/report/comprehensive_runtime_audit.md)
+- [Feasibility Report](docs/knowledge/report/feasibility_report.md)
+- [Runtime Fix Plan](docs/knowledge/report/runtime_fix_plan.md)
+
+### Migration & Scenarios
+
+- [Migration Strategy](docs/knowledge/migration_plan/migration_strategy.md)
+- [AI Scraper Guide](docs/knowledge/migration_plan/ai_scraper_guide.md)
+- Scenarios: [Finance](docs/knowledge/scenarios/finance_unsecured_loan.md) · [Real Estate](docs/knowledge/scenarios/high_ticket_real_estate.md) · [Automotive](docs/knowledge/scenarios/used_car_sales.md) · [Education](docs/knowledge/scenarios/education_admissions.md)
+
+### Khác
+
+- [QA](docs/knowledge/QA.md) · [Tech Debt](docs/NOTE/tech_debt_analysis.md)
 
 ---
 
 ## Tech Stack
 
-| Component | Technology | Highlights |
-| :--- | :--- | :--- |
-| **Backend** | Python, FastAPI | 100% Async, Clean Architecture (DDD) |
-| **Frontend** | Next.js 16, React | Server Components, Zustand, TailwindCSS v4 |
-| **Database** | PostgreSQL | `pgvector` for Embedding, SQLAlchemy 2.0 |
-| **AI LLM** | OpenAI / Gemini | Function Calling, Structured Output |
-| **Infra** | Docker | Containerized, Scalable |
+| Thành phần | Công nghệ |
+|------------|-----------|
+| **Backend** | Python, FastAPI | 100% Async, Clean Architecture |
+| **Frontend** | Next.js 16, React | Server Components, Zustand, TailwindCSS |
+| **Database** | PostgreSQL | pgvector (Embedding), SQLAlchemy 2.0 |
+| **AI/LLM** | OpenAI, Gemini | Function Calling |
+| **Infra** | Docker | Containerized |
 
 ---
 
 ## Quick Start
 
 ### Yêu cầu
+
 - Python 3.10+
 - Node.js 18+
 - PostgreSQL 15+
 
-### Cài đặt (Local Dev)
+### Cài đặt
 
 **1. Backend**
+
 ```bash
-cd bot_v4
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# Kích hoạt môi trường Python (vd: Env3_12)
+# Windows PowerShell:
+G:\project python\Env3_12\Scripts\activate
+
+cd hub_generic_sales_platform   # hoặc thư mục project
 pip install -r requirements.txt
 
-# Cấu hình .env
+# Cấu hình
 cp example_env .env
-# Chỉnh sửa .env với API Key của bạn
+# Chỉnh .env với API Key
 
-# Database Migration
+# Migration
 alembic upgrade head
 
-# Start Server
+# Chạy
 uvicorn app.main:app --reload
 ```
 
 **2. Frontend**
+
 ```bash
 cd frontend
 npm install
@@ -120,55 +129,60 @@ npm run dev
 
 ---
 
-## Project Structure
+## Cấu trúc dự án
 
 ```text
-bot_v4/
-├── app/                  # Backend Core
-│   ├── core/             # Business Logic & Entities (Pure Python)
-│   ├── application/      # Use Cases & Orchestrators
-│   ├── infrastructure/   # DB Adapter, LLM Provider
-│   └── interfaces/       # API & Webhooks
-├── frontend/             # Next.js Application
-├── docs/                 # Documentation (Architecture, Guides)
-│   ├── CANON/            # Core documentation & specifications
-│   └── NOTE/             # Technical notes & analysis
-├── scripts/              # Utility Scripts
-└── tests/                # Unit & Integration Tests
+hub_generic_sales_platform/
+├── app/                    # Backend
+│   ├── core/               # Domain (Entities, State Machine)
+│   ├── application/        # Use Cases (Orchestrators, Handlers)
+│   ├── infrastructure/     # DB, LLM, Search
+│   └── interfaces/        # API, Middleware
+├── frontend/               # Next.js
+├── docs/
+│   ├── CANON/              # Tài liệu chuẩn (Architecture, Flow)
+│   ├── knowledge/          # Domain, Scenarios, Reports
+│   └── NOTE/               # Tech Debt, Notes
+├── scripts/
+└── tests/
 ```
 
 ---
 
-## Tính năng nổi bật
+## Tính năng chính
 
 ### 1. Hybrid Intelligence Engine
-Phân loại luồng thông minh:
-- **Tier 1 (Fast Path)**: Xử lý chào hỏi, social chit-chat -> **Latency < 50ms**
-- **Tier 2 (Knowledge Path)**: Semantic Search cho FAQ & Policy -> **Latency < 500ms**
-- **Tier 3 (Agentic Path)**: Dùng LLM (GPT-4o/Gemini) để tư duy, so sánh sản phẩm, chốt đơn
+
+- **Tier 1 (Fast Path):** Chào hỏi, social chit-chat → < 50ms, cost $0
+- **Tier 2 (Knowledge Path):** Semantic search FAQ, Use Case → < 500ms
+- **Tier 3 (Agentic Path):** LLM + Tools, suy luận đa bước
 
 ### 2. Offering-Centric Catalog
-- Quản lý **Biến thể** (Màu sắc, Size, Phiên bản)
-- Kiểm soát **Tồn kho** thực tế (Inventory Aware)
-- **Dynamic Pricing**: Giá hiển thị theo kênh bán (Zalo, Web) và hạng khách hàng
 
-### 3. Decision Engine & Guardrails
-- **Cost Control**: Tính toán chi phí $ trước khi trả lời
-- **Safety**: Chặn các câu hỏi nhạy cảm, competitor attack
-- **Audit Trail**: Ghi log chi tiết lý do ra quyết định của AI
+- Biến thể (Màu, Size, Phiên bản)
+- Tồn kho (Inventory)
+- Dynamic Pricing theo kênh, hạng khách
 
-### 4. Generative UI (G-UI)
-Vẽ giao diện ngay trong khung chat:
-- **Bento Grid**: Hiển thị bộ sưu tập sản phẩm
-- **Comparison Table**: Bảng so sánh thông số kỹ thuật
-- **Charts**: Biểu đồ biến động giá (cho tài chính/bất động sản)
+### 3. Lifecycle State Machine
+
+13 trạng thái (IDLE → BROWSING → VIEWING → COMPARING → ANALYZING → PURCHASING...). Mỗi trạng thái có whitelist Tool riêng — Bot không "ngu", không gọi Tool sai ngữ cảnh.
+
+### 4. Audit Trail
+
+Mọi quyết định AI ghi vào `runtime_decision_event` — tier nào, lý do, cost, latency. Admin truy vết dễ dàng.
+
+### 5. Generative UI (G-UI)
+
+- Bento Grid — danh sách sản phẩm
+- Comparison Table — so sánh thông số
+- Charts — biến động giá (tài chính, BĐS)
 
 ---
 
 ## Đóng góp
 
-Dự án được phát triển với tiêu chuẩn **Clean Code**. Mọi đóng góp đều được chào đón!
+Dự án tuân theo **Clean Code**. Đóng góp được chào đón!
 
 ---
 
-> **Develop by gsnake team**
+> **Cập nhật**: Tháng 02/2026 · **Trạng thái**: Phản ánh triển khai hiện tại

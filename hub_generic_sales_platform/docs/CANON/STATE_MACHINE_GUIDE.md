@@ -1,205 +1,169 @@
-# State Machine Guide
+# Hướng Dẫn Cỗ Máy Trạng Thái (State Machine Guide)
 
-## Overview
+## Tổng Quan
 
-The **State Machine** is a core component of the Agentic Sales Platform that controls the agent's behavior by scoping available tools based on the current conversation stage. This ensures guided user journeys, prevents invalid operations, and optimizes token usage.
+**Cỗ máy trạng thái (State Machine)** là thành phần cốt lõi của Agentic Sales Platform. Nó điều khiển hành vi của Bot bằng cách **giới hạn danh sách Tool** Bot được phép gọi dựa trên giai đoạn hội thoại hiện tại. Nhờ đó, hành trình khách hàng được dẫn dắt có chủ đích, tránh thao tác sai quy cách và tối ưu chi phí token.
 
-## Core Concept
+### Triết Lý Cốt Lõi
 
-> **State defines the scope; Agent executes within the scope.**
+> **Trạng thái định nghĩa phạm vi; Agent thực thi trong phạm vi đó.**
 
-The agent is powerful but constrained - it can reason freely but only has access to tools allowed in the current state.
+Agent mạnh nhưng bị kiềm chế - nó được phép suy luận tự do nhưng chỉ có quyền gọi những Tool nằm trong whitelist của trạng thái hiện tại.
 
 ---
 
-## Lifecycle States
+## Các Trạng Thái Vòng Đời (Lifecycle States)
 
-The system currently defines **10 lifecycle states** representing different stages of the customer journey:
+Hệ thống định nghĩa **13 trạng thái vòng đời** đại diện cho các giai đoạn khác nhau trong hành trình khách hàng.
+
+**Nguồn chân lý duy nhất**: `app/core/domain/runtime.py`
 
 ```python
 class LifecycleState(str, Enum):
-    IDLE = "idle"
-    BROWSING = "browsing"
-    SEARCHING = "searching"
-    FILTERING = "filtering"
-    VIEWING = "viewing"
-    COMPARING = "comparing"
-    ANALYZING = "analyzing"
-    PURCHASING = "purchasing"
-    CLOSED = "closed"
-    START = "start"  # Initial state
+    IDLE = "idle"           # Chờ/Nhàn rỗi
+    BROWSING = "browsing"   # Duyệt chung
+    SEARCHING = "searching" # Đang tìm kiếm tích cực
+    FILTERING = "filtering" # Thu hẹp/lọc kết quả
+    VIEWING = "viewing"     # Xem chi tiết
+    COMPARING = "comparing" # So sánh sản phẩm
+    ANALYZING = "analyzing" # Phân tích chuyên sâu
+    PURCHASING = "purchasing" # Chốt đơn
+    COMPLETED = "completed"  # Phiên hoàn tất thành công
+    CLOSED = "closed"       # Kết thúc phiên
+    HANDOVER = "handover"   # Nhân viên đã tiếp quản
+    ERROR = "error"         # Lỗi xử lý
+    WAITING_INPUT = "waiting_input"  # Đợi thông tin từ khách
 ```
 
-### State Descriptions
+### Mô Tả Trạng Thái
 
-| State | Purpose | Typical User Intent |
-|-------|---------|---------------------|
-| **START** | Initial entry point | First message in new session |
-| **IDLE** | Waiting, general chat | "Hello", casual conversation |
-| **BROWSING** | General exploration | "Cho tôi xem sản phẩm" |
-| **SEARCHING** | Active search | "Tìm laptop dưới 20 triệu" |
-| **FILTERING** | Refining results | "Chỉ hiện màu đỏ thôi" |
-| **VIEWING** | Examining details | "Xem cái thứ 2", "Chi tiết hơn" |
-| **COMPARING** | Side-by-side comparison | "So sánh 2 cái" |
-| **ANALYZING** | Deep analysis | "Tính vay giúp tôi" (Finance), "Định giá xe cũ" (Auto) |
-| **PURCHASING** | Conversion action | "Đặt hàng", "Book lịch xem nhà" |
-| **CLOSED** | Session ended | Explicit end or timeout |
+| Trạng thái | Mục đích | Ví dụ ý định khách |
+|------------|----------|---------------------|
+| **IDLE** | Chờ đợi, tán gẫu | "Chào", " Xin chào" |
+| **BROWSING** | Duyệt chung | "Cho tôi xem sản phẩm" |
+| **SEARCHING** | Tìm kiếm tích cực | "Tìm laptop dưới 20 triệu" |
+| **FILTERING** | Lọc kết quả | "Chỉ hiện màu đỏ thôi" |
+| **VIEWING** | Xem chi tiết | "Xem cái thứ 2", "Chi tiết hơn" |
+| **COMPARING** | So sánh cạnh nhau | "So sánh 2 cái" |
+| **ANALYZING** | Phân tích sâu | "Tính vay giúp tôi" (Tài chính), "Định giá xe cũ" (Ô tô) |
+| **PURCHASING** | Chốt đơn | "Đặt hàng", "Đặt lịch xem nhà" |
+| **COMPLETED** | Phiên kết thúc thành công | Sau khi mua/đặt thành công |
+| **CLOSED** | Phiên đóng | Kết thúc rõ ràng hoặc timeout |
+| **HANDOVER** | Nhân viên tiếp quản | Chuyển sang hỗ trợ con người |
+| **ERROR** | Lỗi xử lý | Phục hồi sau lỗi hệ thống/tool |
+| **WAITING_INPUT** | Đợi khách trả lời | Bot đã hỏi, đang chờ phản hồi |
+
+=> **Điểm linh hoạt ăn tiền:** Mỗi trạng thái có một **whitelist Tool** riêng. Ví dụ khi đang ở `BROWSING`, Bot chỉ được gọi `search_offerings`, `get_offering_details`. Khi sang `ANALYZING`, Bot mới được phép gọi `credit_scoring()` hay `trade_in_valuation`. Nhờ vậy Agent không "ngu" – không thể vừa chào buổi sáng đã đòi lấy lương để chốt gói vay.
 
 ---
 
-## Tool Scoping (STATE_SKILL_MAP)
+## Giới Hạn Tool Theo Trạng Thái (STATE_SKILL_MAP)
 
-Each state defines a **whitelist of allowed tools**. This prevents the agent from calling inappropriate tools.
+Mỗi trạng thái định nghĩa **danh sách Tool được phép**. Bot không gọi được Tool nằm ngoài danh sách.
 
-**Implementation**: `app/core/domain/state_machine.py`
+**Triển khai**: `app/core/domain/state_machine.py`
 
 ```python
+# Ví dụ minh họa - chi tiết đầy đủ trong state_machine.py
 STATE_SKILL_MAP: Dict[LifecycleState, Set[str]] = {
-    LifecycleState.IDLE: {
-        "search_offerings",
-        "compare_offerings",
-        "get_market_data",
-        "get_strategic_analysis",
-        "trade_in_valuation",
-        "credit_scoring",
-        "assessment_test"
-    },
-    LifecycleState.BROWSING: {
-        "search_offerings",
-        "get_offering_details",
-        "get_market_data",
-        "trade_in_valuation",
-        "credit_scoring",
-        "assessment_test"
-    },
-    LifecycleState.VIEWING: {
-        "get_offering_details",
-        "compare_offerings",
-        "get_market_data",
-        "trigger_web_hook",
-        "get_strategic_analysis",
-        "trade_in_valuation"
-    },
-    LifecycleState.COMPARING: {
-        "compare_offerings",
-        "get_offering_details",
-        "get_market_data",
-        "get_strategic_analysis"
-    },
-    LifecycleState.ANALYZING: {
-        "get_market_data",
-        "get_strategic_analysis",
-        "search_offerings",
-        "credit_scoring",
-        "trade_in_valuation"
-    },
-    LifecycleState.PURCHASING: {
-        "trigger_web_hook",
-        "search_offerings",
-        "get_offering_details"
-    },
-    # ... (SEARCHING, FILTERING similar to BROWSING/VIEWING)
+    LifecycleState.IDLE: {"search_offerings", "compare_offerings", "get_offering_details", ...},
+    LifecycleState.BROWSING: {"search_offerings", "get_offering_details", ...},
+    LifecycleState.SEARCHING: {"search_offerings", "get_offering_details", ...},
+    LifecycleState.FILTERING: {"search_offerings", "get_offering_details"},
+    LifecycleState.VIEWING: {"get_offering_details", "compare_offerings", ...},
+    LifecycleState.COMPARING: {"compare_offerings", "get_offering_details", "trigger_web_hook"},
+    LifecycleState.ANALYZING: {"get_market_data", "credit_scoring", "trade_in_valuation", ...},
+    LifecycleState.PURCHASING: {"trigger_web_hook", "search_offerings", "get_offering_details"},
+    # COMPLETED, CLOSED, ERROR, WAITING_INPUT: whitelist hạn chế để phục hồi/chuyển phiên
 }
 ```
 
-### Tool Distribution by Category
+### Phân Loại Tool Theo Ngành
 
-**Catalog Tools** (All domains):
-- `search_offerings` - Search with filters
-- `get_offering_details` - Get full details of one offering
-- `compare_offerings` - Side-by-side comparison
-
-**Financial Tools** (Finance domain):
-- `get_market_data` - Market analysis, trends
-- `get_strategic_analysis` - Investment recommendations
-- `credit_scoring` - Credit assessment
-
-**Automotive Tools** (Auto domain):
-- `trade_in_valuation` - Trade-in price estimation
-
-**Education Tools** (Education domain):
-- `assessment_test` - Placement testing
-
-**Integration Tools** (All domains):
-- `trigger_web_hook` - External system integration (CRM, PMS, payment)
+| Nhóm | Tool | Ngành áp dụng |
+|------|------|---------------|
+| **Catalog** | `search_offerings`, `get_offering_details`, `compare_offerings` | Mọi ngành |
+| **Tài chính** | `get_market_data`, `get_strategic_analysis`, `credit_scoring` | Vay, Đầu tư |
+| **Ô tô** | `trade_in_valuation` | Mua bán xe |
+| **Giáo dục** | `assessment_test` | Khóa học, placement |
+| **Tích hợp** | `trigger_web_hook` | CRM, PMS, thanh toán |
 
 ---
 
-## State Transitions
+## Chuyển Trạng Thái (State Transitions)
 
-### How States Change
+### Trạng thái thay đổi khi nào?
 
-States change through **tool execution results**:
+Trạng thái thay đổi thông qua **kết quả thực thi Tool**:
 
 ```python
-# Tool handler returns new state
+# Tool handler trả về new_state
 return {
     "success": True,
-    "response": "Found 5 laptops matching your criteria",
+    "response": "Tìm được 5 laptop phù hợp",
     "new_state": LifecycleState.BROWSING,
     "results": [...]
 }
 ```
 
-**AgentOrchestrator** reads the `new_state` and updates the session:
+**HybridOrchestrator** đọc `new_state` và cập nhật phiên:
 
 ```python
 if "new_state" in tool_result:
-    new_state = tool_result["new_state"]
-    await session_handler.update_flow_step(session_id, new_state, tenant_id)
+    await session_handler.update_lifecycle_state(session_id, tool_result["new_state"], tenant_id)
 ```
 
-### Valid Transitions
+### Các Chuyển Đổi Hợp Lệ
 
-While not strictly enforced (flexible system), typical valid transitions:
+Định nghĩa trong `VALID_TRANSITIONS` (state_machine.py). Ví dụ:
 
-| From | To | Trigger |
-|------|----|---------| 
-| IDLE | BROWSING, SEARCHING, ANALYZING | User starts exploring |
-| BROWSING | VIEWING | User picks specific offering |
-| VIEWING | COMPARING, PURCHASING | User wants comparison or to buy |
-| COMPARING | VIEWING, PURCHASING | User picks one or proceeds |
-| ANALYZING | VIEWING, PURCHASING | Analysis complete, next step |
-| PURCHASING | CLOSED | Transaction complete |
-| Any | IDLE | User changes topic |
+| Từ | Đến | Kích hoạt |
+|----|-----|-----------|
+| IDLE | BROWSING, SEARCHING, ANALYZING | Khách bắt đầu khám phá |
+| BROWSING | VIEWING, SEARCHING, FILTERING | Chọn sản phẩm cụ thể / lọc |
+| VIEWING | COMPARING, PURCHASING | So sánh hoặc mua |
+| COMPARING | VIEWING, PURCHASING | Chọn 1 cái hoặc chốt |
+| ANALYZING | VIEWING, PURCHASING | Phân tích xong, bước tiếp |
+| PURCHASING | COMPLETED, CLOSED, ERROR | Giao dịch xong / lỗi |
+| Bất kỳ | IDLE | Khách đổi chủ đề |
 
 ---
 
-## Processing Flow
+## Luồng Xử Lý (Processing Flow)
 
-### 1. Request Arrives
+### 1. Tin nhắn tới
 
 ```python
-# HybridOrchestrator receives message
+# HybridOrchestrator nhận message
 message = "Xem cái thứ 2"
 session = get_session(session_id)
-current_state = session.flow_step  # e.g., "browsing"
+current_state = session.lifecycle_state  # Ví dụ: "browsing"
 ```
 
-### 2. State Machine Filters Tools
+### 2. State Machine Lọc Tool
 
 ```python
-# StateMachine.get_allowed_tools
+# Chỉ trả về Tool được phép
 allowed_tools = StateMachine.get_allowed_tools(current_state)
-# Returns: ["get_offering_details", "search_offerings", ...]
+# Ví dụ: ["get_offering_details", "search_offerings", ...]
 ```
 
-### 3. Agent Reasoning (Scoped)
+### 3. Agent Suy Luận (Trong Phạm Vi)
 
 ```python
-# AgentOrchestrator sends ONLY allowed tools to LLM
+# AgentOrchestrator chỉ gửi allowed_tools cho LLM
 llm_result = await llm_provider.generate_response(
-    system_prompt="You are a sales assistant...",
+    system_prompt="Bạn là trợ lý bán hàng...",
     user_message=message,
-    tools=allowed_tools,  # ← SCOPED, not all tools
+    tools=allowed_tools,  # ← BỊ GIỚI HẠN, không phải tất cả
     messages_history=history
 )
 ```
 
-### 4. State Update
+### 4. Cập Nhật Trạng Thái
 
 ```python
-# Tool execution returns new state
+# Kết quả Tool trả về new_state
 tool_result = await execute_tool(tool_name, arguments)
 if tool_result.get("new_state"):
     await update_session_state(session_id, tool_result["new_state"])
@@ -207,173 +171,164 @@ if tool_result.get("new_state"):
 
 ---
 
-## Benefits of State Machine
+## Lợi Ích Của State Machine
 
-### 1. **Predictability**
-Admin knows exactly what the bot can/cannot do in each state.
-- Cannot purchase before viewing
-- Cannot compare without search results
+### 1. Dự đoán được hành vi
 
-### 2. **Token Optimization**
-Instead of sending all 20+ tools to LLM:
-- IDLE: ~7 tools
-- VIEWING: ~6 tools
-- COMPARING: ~4 tools
+Admin biết rõ Bot được phép và không được phép làm gì ở từng trạng thái.
+- Không mua trước khi xem chi tiết
+- Không so sánh khi chưa có kết quả tìm kiếm
 
-**Savings**: 50-70% reduction in tool schema tokens
+### 2. Tối ưu Token
 
-### 3. **Analytics & Tracking**
-Dashboard shows:
-- Where users drop off (e.g., 60% abandon at VIEWING)
-- Average time per state
-- Conversion funnel by state
+Thay vì gửi cả 20+ Tool cho LLM, mỗi trạng thái chỉ cần 4–7 Tool. **Tiết kiệm ~50–70% token** cho tool schema.
 
-### 4. **Guardrails**
-If LLM hallucinates and tries to call unauthorized tool:
+### 3. Phân Tích & Theo Dõi
+
+Dashboard hiển thị:
+- Khách rời bỏ ở đâu (vd: 60% bỏ ở VIEWING)
+- Thời gian trung bình mỗi trạng thái
+- Phễu chuyển đổi theo trạng thái
+
+### 4. Guardrails
+
+Nếu LLM "ảo tưởng" gọi Tool không có trong whitelist:
+
 ```python
-# Tool executor checks
 if tool_name not in allowed_tools:
-    return {"error": "Tool not allowed in current state"}
+    return {"error": "Tool không được phép ở trạng thái hiện tại"}
 ```
 
 ---
 
-## Example: User Journey
+## Ví Dụ Hành Trình Khách Hàng
 
-### Retail Flow
-
-```
-User: "Cho tôi xem laptop"
-→ State: IDLE → BROWSING
-→ Tools: search_offerings
-→ Result: 5 laptops shown
-
-User: "Cái thứ 2"
-→ State: BROWSING → VIEWING
-→ Tools: get_offering_details
-→ Result: Full specs displayed
-
-User: "So sánh với cái 4"
-→ State: VIEWING → COMPARING
-→ Tools: compare_offerings
-→ Result: Side-by-side table
-
-User: "Mua cái đầu"
-→ State: COMPARING → PURCHASING
-→ Tools: trigger_web_hook
-→ Result: Redirect to checkout
-```
-
-### Real Estate Flow
+### Luồng Bán Lẻ (Giày dép, Điện tử)
 
 ```
-User: "Tìm căn 3PN ở Quận 1"
-→ State: IDLE → BROWSING
-→ Tools: search_offerings
-→ Result: 3 properties shown
+Khách: "Cho tôi xem laptop"
+→ Trạng thái: IDLE → BROWSING
+→ Tool: search_offerings
+→ Kết quả: Hiện 5 laptop
 
-User: "Căn đầu hướng nào?"
-→ State: BROWSING → VIEWING
-→ Tools: get_offering_details
-→ Result: Details + direction info
+Khách: "Cái thứ 2"
+→ Trạng thái: BROWSING → VIEWING
+→ Tool: get_offering_details
+→ Kết quả: Chi tiết đầy đủ
 
-User: "Tính vay giúp tôi"
-→ State: VIEWING → ANALYZING
-→ Tools: get_market_data (mortgage calculator)
-→ Result: Loan calculation displayed
+Khách: "So sánh với cái 4"
+→ Trạng thái: VIEWING → COMPARING
+→ Tool: compare_offerings
+→ Kết quả: Bảng so sánh
 
-User: "Đặt lịch xem nhà"
-→ State: ANALYZING → PURCHASING
-→ Tools: trigger_web_hook
-→ Result: Calendar booking link sent
+Khách: "Mua cái đầu"
+→ Trạng thái: COMPARING → PURCHASING
+→ Tool: trigger_web_hook
+→ Kết quả: Chuyển checkout
 ```
+
+### Luồng Bất Động Sản / Tài Chính
+
+```
+Khách: "Tìm căn 3PN ở Quận 1"
+→ Trạng thái: IDLE → BROWSING
+→ Tool: search_offerings
+→ Kết quả: 3 căn hiện ra
+
+Khách: "Căn đầu hướng nào?"
+→ Trạng thái: BROWSING → VIEWING
+→ Tool: get_offering_details
+→ Kết quả: Chi tiết + hướng nhà
+
+Khách: "Tính vay giúp tôi"
+→ Trạng thái: VIEWING → ANALYZING
+→ Tool: credit_scoring / get_market_data (tính vay)
+→ Kết quả: Bảng trả góp
+
+Khách: "Đặt lịch xem nhà"
+→ Trạng thái: ANALYZING → PURCHASING
+→ Tool: trigger_web_hook
+→ Kết quả: Link đặt lịch gửi khách
+```
+
+=> **Điểm linh hoạt ăn tiền:** Luồng Bán lẻ có thể nhảy vọt BROWSING → PURCHASING (mua luôn). Luồng Tài chính phải đứng lâu ở ANALYZING rồi mới sang VIEWING/PURCHASING. Cùng một State Machine, khác flow_config theo ngành.
 
 ---
 
-## Adding a New State
+## Thêm Trạng Thái Mới
 
-### Step 1: Define State in Domain
+### Bước 1: Định nghĩa trong Domain
 
 **File**: `app/core/domain/runtime.py`
 
 ```python
 class LifecycleState(str, Enum):
-    # ... existing states
-    NEGOTIATING = "negotiating"  # NEW
+    # ... trạng thái hiện có
+    NEGOTIATING = "negotiating"  # MỚI
 ```
 
-### Step 2: Configure State Machine
+### Bước 2: Cấu hình State Machine
 
 **File**: `app/core/domain/state_machine.py`
 
 ```python
 STATE_SKILL_MAP: Dict[LifecycleState, Set[str]] = {
-    # ... existing states
-    LifecycleState.NEGOTIATING: {
-        "get_offering_details",
-        "get_price_analysis",  # Hypothetical tool
-        "submit_counter_offer"  # Hypothetical tool
-    }
+    # ...
+    LifecycleState.NEGOTIATING: {"get_offering_details", "submit_counter_offer"}
+}
+VALID_TRANSITIONS: Dict[LifecycleState, Set[LifecycleState]] = {
+    # Thêm transition đến/từ NEGOTIATING
 }
 ```
 
-### Step 3: Update Tool Handlers
+### Bước 3: Cập Nhật Tool Handler
 
-Ensure tools return `new_state: LifecycleState.NEGOTIATING` when appropriate:
+Tool trả về `new_state: LifecycleState.NEGOTIATING` khi cần.
 
-```python
-@agent_tools.register_tool(name="submit_counter_offer")
-async def handle_counter_offer(offering_id: str, offer_price: float, **kwargs):
-    # Save offer
-    return {
-        "success": True,
-        "response": "Counter-offer submitted",
-        "new_state": LifecycleState.NEGOTIATING
-    }
-```
+### Bước 4: Migration DB (nếu cần)
 
-### Step 4: Database Migration (if needed)
-
-If state is stored as enum in DB:
+Nếu DB dùng enum:
 ```sql
 ALTER TYPE lifecycle_state_enum ADD VALUE 'negotiating';
 ```
 
 ---
 
-## Current State vs Ideal State
+## Hiện Trạng Triển Khai
 
-### ✅ Currently Implemented
-- 10 lifecycle states defined
-- Tool scoping per state
-- Dynamic state transitions
-- State persistence in database
-- Background state updates
+### ✅ Đã Có
 
-### ⚠️ Areas for Enhancement
-- **Strict transition validation**: Currently allows any transition (flexible but risky)
-- **State timeout**: Sessions don't auto-expire if idle too long
-- **State analytics dashboard**: Exists but could be more detailed
-- **Error recovery states**: Missing WAITING_USER_INPUT, ERROR states
+- 13 trạng thái vòng đời (`app/core/domain/runtime.py`)
+- Giới hạn Tool theo trạng thái (`STATE_SKILL_MAP`)
+- Quy tắc chuyển trạng thái (`VALID_TRANSITIONS`)
+- Lưu trạng thái trong DB
+- Phục hồi lỗi: trạng thái `ERROR`, `WAITING_INPUT`
+- Luồng tiếp quản: trạng thái `HANDOVER`
 
----
+### ⚠️ Có Thể Cải Thiện
 
-## Best Practices
-
-### Do's
-✅ Always scope tools by state  
-✅ Return `new_state` from tool handlers when state should change  
-✅ Log state transitions for analytics  
-✅ Use descriptive state names (present participle: BROWSING, VIEWING)
-
-### Don'ts
-❌ Don't bypass state machine (call tools directly)  
-❌ Don't create too many states (causes tool fragmentation)  
-❌ Don't hard-code state transitions (use declarative config)  
-❌ Don't forget to update frontend state display
+- **Strict transition**: Hiện cho phép linh hoạt; có thể siết chặt nếu cần
+- **State timeout**: Phiên chưa tự hết hạn khi idle lâu
+- **Dashboard phân tích**: Đã có nhưng có thể chi tiết hơn
 
 ---
 
-**Implementation Status**: Production-ready, actively used  
-**Last Updated**: February 2026  
-**Location**: `app/core/domain/state_machine.py`
+## Gợi Ý Thực Hành
+
+**Nên:**
+- Luôn giới hạn Tool theo trạng thái
+- Trả về `new_state` từ tool handler khi cần đổi trạng thái
+- Ghi log chuyển trạng thái để phân tích
+- Đặt tên trạng thái dạng hiện tại phân từ (BROWSING, VIEWING)
+
+**Không nên:**
+- Vượt qua State Machine (gọi Tool trực tiếp)
+- Tạo quá nhiều trạng thái (tool vỡ vụn)
+- Hard-code transition (dùng config khai báo)
+- Quên cập nhật hiển thị trạng thái ở Frontend
+
+---
+
+**Trạng thái Tài liệu**: Phản ánh triển khai hiện tại.
+**Cập nhật lần cuối**: Tháng 02/2026.
+**Vị trí**: `app/core/domain/state_machine.py`

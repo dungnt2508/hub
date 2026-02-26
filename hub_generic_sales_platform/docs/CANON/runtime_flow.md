@@ -1,29 +1,35 @@
-# Runtime Data Flow
+# Luồng Dữ Liệu Thời Chạy (Runtime Data Flow)
 
-## Overview
+## Tổng Quan
 
-This document describes the **runtime data flow** in the Agentic Sales Platform - how conversation data flows through the system and gets persisted in the `runtime_*` tables.
-
----
-
-## Runtime Tables Overview
-
-The system uses **6 runtime tables** to track conversation state and execution:
-
-| Table | Status | Purpose |
-|-------|--------|---------|
-| `runtime_session` | ✅ Active | Session lifecycle management |
-| `runtime_turn` | ✅ Active | Conversation history (user + bot messages) |
-| `runtime_context_slot` | ✅ Active | Extracted context (slots) per session |
-| `runtime_decision_event` | ✅ Active | Orchestration decisions (which tier used, cost, latency) |
-| `runtime_action_execution` | ⚠️ Partially Used | Tool execution logging |
-| `runtime_guardrail_check` | 🔄 Planned | Safety checks (toxicity, PII detection) |
+Tài liệu mô tả **luồng dữ liệu thời chạy (runtime data flow)** trong Agentic Sales Platform - cách dữ liệu hội thoại chạy qua hệ thống và được lưu trữ trong các bảng `runtime_*`.
 
 ---
 
-## Data Flow Architecture
+## Tổng Quan Bảng Runtime
 
-### High-Level Flow
+Hệ thống dùng **6 bảng runtime** để:
+- Theo dõi trạng thái phiên hội thoại
+- Lưu lịch sử chat
+- Trích xuất và lưu ngữ cảnh (context slots)
+- Ghi audit quyết định của AI
+
+| Bảng | Trạng thái | Mục đích |
+|------|------------|----------|
+| `runtime_session` | ✅ Active | Quản lý vòng đời phiên |
+| `runtime_turn` | ✅ Active | Lịch sử hội thoại (tin nhắn user + bot) |
+| `runtime_context_slot` | ✅ Active | Ngữ cảnh trích xuất (slots) theo phiên |
+| `runtime_decision_event` | ✅ Active | Quyết định điều phối (tier nào dùng, cost, latency) |
+| `runtime_action_execution` | ⚠️ Một phần | Log thực thi Tool |
+| `runtime_guardrail_check` | 🔄 Kế hoạch | Kiểm tra an toàn (toxicity, PII) |
+
+=> **Điểm linh hoạt ăn tiền:** Mọi quyết định của AI đều được ghi lại vào `runtime_decision_event`. Khi có sự cố, Admin có thể truy vết "Tại sao Bot chọn Agentic Path thay vì Cache?", "Phiên này tốn bao nhiêu token?" - đảm bảo **Audit Trail** 100%.
+
+---
+
+## Kiến Trúc Luồng Dữ Liệu
+
+### Luồng Tổng Quan
 
 ```mermaid
 graph TD
@@ -54,37 +60,37 @@ graph TD
 
 ---
 
-## Detailed Flow Breakdown
+## Chi Tiết Từng Bước
 
-### 1. Session Management (runtime_session)
+### 1. Quản Lý Phiên (runtime_session)
 
-**Trigger**: First message in conversation or session lookup
+**Kích hoạt**: Tin nhắn đầu tiên hoặc lookup phiên hiện có
 
-**Data Written**:
+**Dữ liệu ghi**:
 ```python
 {
     "id": "uuid",
     "tenant_id": "tenant-123",
     "bot_id": "bot-456",
-    "flow_step": "idle",  # Lifecycle state
+    "lifecycle_state": "idle",  # idle, browsing, viewing, purchasing...
     "started_at": "2026-02-14T00:00:00",
     "ended_at": null,
-    "metadata": {}
+    "ext_metadata": {}
 }
 ```
 
-**Operations**:
-- `CREATE`: New conversation starts
-- `UPDATE`: State transitions (`flow_step` changes)
-- `READ`: Every message retrieves current state
+**Thao tác**:
+- `CREATE`: Phiên mới bắt đầu
+- `UPDATE`: Chuyển trạng thái (`lifecycle_state` đổi)
+- `READ`: Mỗi tin nhắn đều lấy trạng thái hiện tại
 
 ---
 
-### 2. Conversation History (runtime_turn)
+### 2. Lịch Sử Hội Thoại (runtime_turn)
 
-**Trigger**: Every user message and bot response
+**Kích hoạt**: Mỗi tin nhắn user và phản hồi bot
 
-**Data Written**:
+**Dữ liệu ghi**:
 
 **User Turn**:
 ```python
@@ -101,7 +107,7 @@ graph TD
 ```python
 {
     "session_id": "session-uuid",
-    "speaker": "assistant",
+    "speaker": "bot",  # Lưu trong DB; chuyển sang "assistant" khi gửi LLM
     "message": "Tôi tìm thấy 5 laptop phù hợp...",
     "created_at": "2026-02-14T00:00:03",
     "ui_metadata": {
@@ -111,117 +117,107 @@ graph TD
 }
 ```
 
-**Usage**:
-- History injection into LLM (last 10 turns)
-- Conversation replay in admin dashboard
-- Training data for future fine-tuning
+**Sử dụng**:
+- Nhúng history vào LLM (10 turns gần nhất)
+- Phát lại hội thoại trong Admin Dashboard
+- Dữ liệu cho fine-tuning tương lai
 
 ---
 
 ### 3. Context Slots (runtime_context_slot)
 
-**Trigger**: Slot extraction after user message (Agentic Path)
+**Kích hoạt**: Trích xuất slot sau tin nhắn user (Agentic Path)
 
-**Data Written**:
+**Dữ liệu ghi** (khớp `app/infrastructure/database/models/runtime.py`):
 ```python
 {
     "session_id": "session-uuid",
-    "slot_key": "color",
-    "slot_value": "đỏ",
-    "confidence": 0.95,
-    "extracted_from_turn_id": "turn-123",
-    "created_at": "2026-02-14T00:00:02",
-    "expires_at": "2026-02-14T01:00:02"  # TTL
+    "key": "color",           # slot_key
+    "value": "đỏ",            # slot_value
+    "status": "active",        # active, overridden, conflict, inferred
+    "source": "user",         # user, system, inferred
+    "source_turn_id": "turn-123",  # turn trích xuất ra slot này
+    "created_at": "2026-02-14T00:00:02"
 }
+# Ghi chú: confidence, expires_at — kế hoạch mở rộng, chưa triển khai
 ```
 
-**Examples by Domain**:
+**Ví dụ theo ngành**:
 
-| Domain | Slot Keys | Example Values |
-|--------|-----------|----------------|
-| **Retail** | color, size, brand, max_price | "đỏ", "L", "Nike", "5000000" |
-| **Real Estate** | bedrooms, location, budget, direction | "3", "Quận 1", "7000000000", "Đông Nam" |
-| **Auto** | make, model, year, max_price | "Toyota", "Camry", "2020", "800000000" |
-| **Finance** | loan_amount, income, purpose | "100000000", "30000000", "mua nhà" |
+| Ngành | Slot Keys | Giá trị mẫu |
+|-------|-----------|-------------|
+| **Bán lẻ** | color, size, brand, max_price | "đỏ", "L", "Nike", "5000000" |
+| **Bất động sản** | bedrooms, location, budget, direction | "3", "Quận 1", "7 tỷ", "Đông Nam" |
+| **Ô tô** | make, model, year, max_price | "Toyota", "Camry", "2020", "800 triệu" |
+| **Tài chính** | loan_amount, income, purpose | "100 triệu", "30 triệu", "mua nhà" |
 
-**Usage**:
-- Injected into system prompt: `"CONTEXT: color=đỏ, budget=5tr"`
-- Tool argument fallback: If `offering_id` missing from LLM call, use `context.get("offering_id")`
-- Multi-turn context persistence
+=> **Điểm linh hoạt ăn tiền:** Slots hoạt động như "Trí nhớ ngắn hạn". Khách nói "Laptop cho design" → slot `use_case=design`. Khách nói tiếp "Màu đen thôi" → thêm `color=đen`. Lần thứ 3 hỏi "Cái thứ 2 giá bao nhiêu?" → Bot dùng slots + kết quả tìm kiếm trước để giải quyết "thứ 2".
+
+**Sử dụng**:
+- Nhúng vào system prompt: `"CONTEXT: color=đỏ, budget=5tr"`
+- Fallback cho tham số Tool: Thiếu `offering_id` thì lấy từ `context.get("offering_id")`
+- Duy trì ngữ cảnh xuyên nhiều lượt chat
 
 ---
 
-### 4. Decision Events (runtime_decision_event)
+### 4. Sự Kiện Quyết Định (runtime_decision_event)
 
-**Trigger**: After each orchestrator decision (which tier was used)
+**Kích hoạt**: Sau mỗi quyết định điều phối (tier nào được dùng)
 
-**Data Written**:
+**Dữ liệu ghi** (khớp `app/infrastructure/database/models/decision.py`):
 ```python
 {
     "session_id": "session-uuid",
-    "event_type": "tier_selection",  # or "tool_execution", "state_transition"
-    "decision_metadata": {
-        "tier": "agentic_path",
-        "reason": "No cache hit, semantic search confidence 0.72",
-        "alternative_considered": "knowledge_path"
-    },
-    "estimated_cost_usd": 0.015,  # LLM API cost
+    "input_turn_id": "turn-123",
+    "bot_version_id": "bot-v-456",
+    "tier_code": "agentic_path",      # fast_path, knowledge_path, agentic_path
+    "decision_type": "PROCEED",       # ASK_CLARIFY, PROCEED, GUARDRAIL_BLOCK, FALLBACK...
+    "decision_reason": "No cache hit, semantic search confidence 0.72",
+    "estimated_cost": 0.015,
+    "token_usage": {"prompt": 1500, "completion": 200},
     "latency_ms": 2340,
     "created_at": "2026-02-14T00:00:03"
 }
 ```
 
-**Analytics Use Cases**:
-- Cost tracking per session
-- Average latency per tier
-- Tier distribution (% Fast vs Knowledge vs Agentic)
-- ROI calculation (cost vs conversion)
+**Phân tích**:
+- Chi phí theo phiên
+- Latency trung bình theo tier
+- Phân bố tier (% Fast vs Knowledge vs Agentic)
+- ROI: cost vs conversion
 
 ---
 
-### 5. Action Execution (runtime_action_execution)
+### 5. Thực Thi Hành Động (runtime_action_execution)
 
-**Trigger**: Tool execution in Agentic Path
+**Kích hoạt**: Khi Tool chạy trong Agentic Path
 
-**Current Status**: ⚠️ Partially implemented (basic logging)
+**Hiện trạng**: ⚠️ Một phần (log cơ bản)
 
-**Data Written**:
+**Dữ liệu ghi** (khớp `app/infrastructure/database/models/decision.py` — gắn với `decision_id`):
 ```python
 {
-    "session_id": "session-uuid",
-    "action_type": "tool_call",
-    "action_name": "search_offerings",
-    "input_params": {
-        "query": "laptop gaming",
-        "max_price": "30000000"
-    },
-    "output_result": {
-        "success": true,
-        "results_count": 5,
-        "new_state": "browsing"
-    },
-    "execution_time_ms": 450,
-    "created_at": "2026-02-14T00:00:02.5"
+    "decision_id": "decision-uuid",   # FK → runtime_decision_event
+    "action_type": "trigger_tool",   # respond, call_api, trigger_tool
+    "request_payload": {"tool": "search_offerings", "query": "laptop gaming"},
+    "response_payload": {"success": true, "results_count": 5, "new_state": "browsing"},
+    "status": "success",             # success, failed, timeout
+    "started_at": "2026-02-14T00:00:02.5",
+    "finished_at": "2026-02-14T00:00:02.95"
 }
 ```
 
-**Future Enhancements**:
-- Detailed tool call chain visualization
-- Performance profiling per tool
-- Error rate tracking
-
 ---
 
-### 6. Guardrail Checks (runtime_guardrail_check)
+### 6. Kiểm Tra Guardrail (runtime_guardrail_check)
 
-**Status**: 🔄 Planned (not yet implemented)
+**Trạng thái**: 🔄 Kế hoạch (chưa triển khai)
 
-**Purpose**: Log safety checks before processing
+**Mục đích**: Ghi log kiểm tra an toàn trước khi xử lý
 
-**Planned Schema**:
+**Schema dự kiến**:
 ```python
 {
-    "session_id": "session-uuid",
     "check_type": "toxicity" | "pii_detection" | "competitor_mention",
     "input_text": "User message",
     "check_result": "pass" | "fail",
@@ -232,191 +228,79 @@ graph TD
 
 ---
 
-## Data Flow Examples
+## Ví Dụ Luồng
 
-### Example 1: Simple Retail Query
+### Ví dụ 1: Tra cứu Bán lẻ đơn giản
 
 ```
-User: "Tôi muốn laptop giá rẻ"
+Khách: "Tôi muốn laptop giá rẻ"
 ```
 
-**Database Operations**:
+**Thao tác DB**:
+1. Session lookup/create (runtime_session)
+2. Lưu User Turn (runtime_turn)
+3. Tier chọn Agentic Path → Log Decision Event
+4. Trích xuất slots: `product_type=laptop`, `price_preference=rẻ`
+5. Tool search_offerings chạy
+6. Lưu Bot Turn + cập nhật `lifecycle_state = browsing`
 
-1. **Session Lookup/Create**:
-```sql
-INSERT INTO runtime_session (id, tenant_id, bot_id, flow_step, started_at)
-VALUES ('sess-1', 'tenant-1', 'bot-1', 'idle', NOW());
+---
+
+### Ví dụ 2: Hội thoại nhiều lượt với Context
+
 ```
-
-2. **Save User Turn**:
-```sql
-INSERT INTO runtime_turn (session_id, speaker, message, created_at)
-VALUES ('sess-1', 'user', 'Tôi muốn laptop giá rẻ', NOW());
-```
-
-3. **Tier Selection → Agentic Path**:
-```sql
-INSERT INTO runtime_decision_event (session_id, event_type, decision_metadata)
-VALUES ('sess-1', 'tier_selection', '{"tier": "agentic_path"}');
-```
-
-4. **Slot Extraction**:
-```sql
-INSERT INTO runtime_context_slot (session_id, slot_key, slot_value, confidence)
-VALUES ('sess-1', 'product_type', 'laptop', 0.95),
-       ('sess-1', 'price_preference', 'rẻ', 0.88);
-```
-
-5. **Tool Execution**:
-```sql
--- (Simplified, actual execution happens in code)
-INSERT INTO runtime_action_execution (session_id, action_name, input_params)
-VALUES ('sess-1', 'search_offerings', '{"query": "laptop", "price_range": "low"}');
-```
-
-6. **Save Bot Turn**:
-```sql
-INSERT INTO runtime_turn (session_id, speaker, message, ui_metadata)
-VALUES ('sess-1', 'assistant', 'Tôi tìm thấy 5 laptop...', '{"type": "grid"}');
-```
-
-7. **Update Session State**:
-```sql
-UPDATE runtime_session SET flow_step = 'browsing' WHERE id = 'sess-1';
+Lượt 1: "Laptop cho design"  → Slots: {product_type: laptop, use_case: design}
+Lượt 2: "Màu đen thôi"      → Slots: +{color: đen}
+Lượt 3: "Cái thứ 2 giá bao nhiêu?" → Dùng slots + kết quả search trước để resolve "thứ 2"
 ```
 
 ---
 
-### Example 2: Multi-Turn with Context
+## Đặc Tính Hiệu Năng
 
-```
-Turn 1
-User: "Laptop cho design"
-→ Slots: {product_type: laptop, use_case: design}
+### Thao tác Ghi
 
-Turn 2
-User: "Màu đen thôi"
-→ Slots: {color: đen}  (adds to existing)
+| Bảng | Ghi mỗi tin nhắn | Batched? | Async? |
+|------|------------------|----------|--------|
+| `runtime_session` | 0–1 | Không | Không |
+| `runtime_turn` | 2 (user + bot) | Không | Background |
+| `runtime_context_slot` | 0–5 (TB 2) | Có | Background |
+| `runtime_decision_event` | 1 | Không | Background |
+| `runtime_action_execution` | 0–3 | Không | Background |
 
-Turn 3
-User: "Cái thứ 2 giá bao nhiêu?"
-→ Uses slots: product_type, color
-→ Resolves ordinal "thứ 2" from previous search results
-```
+**Tổng ghi DB**: ~5–10 mỗi lượt hội thoại
 
-**Context Slot Accumulation**:
-```sql
--- Turn 1
-INSERT INTO runtime_context_slot (session_id, slot_key, slot_value)
-VALUES ('sess-1', 'product_type', 'laptop'),
-       ('sess-1', 'use_case', 'design');
-
--- Turn 2 (add new slot)
-INSERT INTO runtime_context_slot (session_id, slot_key, slot_value)
-VALUES ('sess-1', 'color', 'đen');
-
--- Turn 3 (read existing slots)
-SELECT slot_key, slot_value FROM runtime_context_slot
-WHERE session_id = 'sess-1' AND expires_at > NOW();
--- Returns: {product_type: laptop, use_case: design, color: đen}
-```
+=> **Tối ưu**: Phần lớn ghi chạy **background task** để không block API response.
 
 ---
 
-## Performance Characteristics
+### Thao tác Đọc
 
-### Write Operations
+| Bảng | Đọc mỗi tin nhắn | Cache? |
+|------|------------------|--------|
+| `runtime_session` | 1 | Không |
+| `runtime_turn` | 1 (LIMIT 10) | Dự kiến Redis |
+| `runtime_context_slot` | 1 (status = active) | Không |
 
-| Table | Writes per Message | Batched? | Async? |
-|-------|-------------------|----------|--------|
-| `runtime_session` | 0-1 (create once) | No | No |
-| `runtime_turn` | 2 (user + bot) | No | Background task |
-| `runtime_context_slot` | 0-5 (avg 2) | Yes | Background task |
-| `runtime_decision_event` | 1 | No | Background task |
-| `runtime_action_execution` | 0-3 (if agentic) | No | Background task |
-
-**Total DB Writes**: ~5-10 per conversation turn
-
-**Optimization**: Most writes happen in **background tasks** to not block API response.
+**Tổng đọc DB**: ~3 mỗi lượt hội thoại
 
 ---
 
-### Read Operations
+## Hướng Phát Triển
 
-| Table | Reads per Message | Cached? |
-|-------|------------------|---------|
-| `runtime_session` | 1 | No (but scoped to session_id) |
-| `runtime_turn` | 1 (LIMIT 10) | Planned (Redis) |
-| `runtime_context_slot` | 1 (where expires_at > NOW) | No |
+### 1. Dọn dẹp phiên (Kế hoạch)
+- Lên lịch archive phiên cũ (> 30 ngày)
 
-**Total DB Reads**: ~3 per conversation turn
+### 2. Tóm tắt lượt chat (Nghiên cứu)
+- Hội thoại > 50 lượt: tóm tắt lượt cũ thành slots, giữ 10 lượt gần nhất verbatim → giảm token
 
----
-
-## Monitoring & Analytics
-
-### Key Metrics from Runtime Tables
-
-**From `runtime_decision_event`**:
-```sql
--- Cost per session
-SELECT session_id, SUM(estimated_cost_usd) as total_cost
-FROM runtime_decision_event
-GROUP BY session_id;
-
--- Tier distribution
-SELECT decision_metadata->>'tier' as tier, COUNT(*) as count
-FROM runtime_decision_event
-GROUP BY tier;
-```
-
-**From `runtime_turn`**:
-```sql
--- Average conversation length
-SELECT session_id, COUNT(*) / 2 as turns  -- Divide by 2 (user+bot pairs)
-FROM runtime_turn
-GROUP BY session_id;
-```
-
-**From `runtime_context_slot`**:
-```sql
--- Most common extracted slots
-SELECT slot_key, COUNT(*) as frequency
-FROM runtime_context_slot
-GROUP BY slot_key
-ORDER BY frequency DESC;
-```
+### 3. Dashboard phân tích thời gian thực
+- Số phiên đang hoạt động
+- Phân bố trạng thái
+- Token usage, cost theo domain/bot
 
 ---
 
-## Future Enhancements
-
-### 1. Session Cleanup (Planned)
-```python
-# Scheduled job
-async def archive_old_sessions():
-    cutoff = datetime.now() - timedelta(days=30)
-    await db.execute(
-        update(RuntimeSession)
-        .where(RuntimeSession.ended_at < cutoff)
-        .values(archived=True)
-    )
-```
-
-### 2. Turn Summarization (Research)
-For long conversations (> 50 turns):
-- Summarize old turns into context slots
-- Keep recent 10 turns verbatim
-- Reduces token cost while preserving context
-
-### 3. Real-Time Analytics Dashboard
-- Live session count
-- Active states distribution
-- Token usage trending
-- Cost per domain/bot
-
----
-
-**Implementation Status**: Core tables active, analytics layer growing  
-**Last Updated**: February 2026  
-**Location**: `app/infrastructure/database/models/runtime.py`
+**Trạng thái Tài liệu**: Phản ánh triển khai hiện tại.
+**Cập nhật lần cuối**: Tháng 02/2026.
+**Vị trí**: `app/infrastructure/database/models/runtime.py`

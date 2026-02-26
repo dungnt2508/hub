@@ -399,7 +399,7 @@ CREATE TABLE runtime_session (
     bot_id UUID REFERENCES bot(id),
     bot_version_id UUID REFERENCES bot_version(id),
     channel_code TEXT,  -- 'web', 'zalo', 'facebook'
-    flow_step TEXT,  -- Current lifecycle state
+    lifecycle_state TEXT NOT NULL DEFAULT 'idle',  -- Current lifecycle state
     flow_context JSONB,  -- Arbitrary session metadata
     ext_metadata JSONB,  -- External system data
     state_updated_at TIMESTAMP,
@@ -416,7 +416,7 @@ Conversation history (user + bot messages).
 CREATE TABLE runtime_turn (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES runtime_session(id) ON DELETE CASCADE,
-    speaker TEXT NOT NULL,  -- 'user', 'assistant', 'system'
+    speaker TEXT NOT NULL,  -- 'user', 'bot', 'system'
     message TEXT NOT NULL,
     ui_metadata JSONB,  -- UI rendering data (grids, comparisons)
     created_at TIMESTAMP DEFAULT NOW()
@@ -431,13 +431,14 @@ Extracted context (entities) from conversation.
 CREATE TABLE runtime_context_slot (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES runtime_session(id) ON DELETE CASCADE,
-    slot_key TEXT NOT NULL,  -- 'color', 'budget', 'location'
-    slot_value TEXT NOT NULL,
-    confidence NUMERIC,  -- Extraction confidence
-    extracted_from_turn_id UUID REFERENCES runtime_turn(id),
-    expires_at TIMESTAMP,  -- TTL for slot
+    key TEXT NOT NULL,  -- slot key: 'color', 'budget', 'location'
+    value TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',  -- active, overridden, conflict, inferred
+    source TEXT NOT NULL DEFAULT 'user',  -- user, system, inferred
+    source_turn_id UUID REFERENCES runtime_turn(id),
     created_at TIMESTAMP DEFAULT NOW()
 );
+-- Ghi chú: confidence, expires_at — kế hoạch mở rộng, chưa triển khai
 ```
 
 #### runtime_decision_event
@@ -450,9 +451,11 @@ CREATE TABLE runtime_decision_event (
     session_id UUID REFERENCES runtime_session(id) ON DELETE CASCADE,
     input_turn_id UUID REFERENCES runtime_turn(id),
     bot_version_id UUID REFERENCES bot_version(id),
-    event_type TEXT,  -- 'tier_selection', 'tool_execution'
-    decision_metadata JSONB,  -- Details about decision
-    estimated_cost_usd NUMERIC,  -- LLM API cost
+    tier_code TEXT,  -- fast_path, knowledge_path, agentic_path
+    decision_type TEXT NOT NULL,  -- ASK_CLARIFY, PROCEED, GUARDRAIL_BLOCK, FALLBACK
+    decision_reason TEXT,
+    estimated_cost NUMERIC(10,5),
+    token_usage JSONB,
     latency_ms INTEGER,
     created_at TIMESTAMP DEFAULT NOW()
 );
@@ -465,13 +468,13 @@ Tool execution logs.
 ```sql
 CREATE TABLE runtime_action_execution (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID REFERENCES runtime_session(id) ON DELETE CASCADE,
-    action_type TEXT,  -- 'tool_call', 'api_call'
-    action_name TEXT,  -- Tool name
-    input_params JSONB,
-    output_result JSONB,
-    execution_time_ms INTEGER,
-    status TEXT,  -- 'success', 'error'
+    decision_id UUID REFERENCES runtime_decision_event(id) ON DELETE CASCADE NOT NULL,
+    action_type TEXT NOT NULL,  -- respond, call_api, trigger_tool
+    request_payload JSONB,
+    response_payload JSONB,
+    status TEXT NOT NULL,  -- success, failed, timeout
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
 ```

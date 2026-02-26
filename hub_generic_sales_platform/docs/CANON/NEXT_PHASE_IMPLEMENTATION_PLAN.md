@@ -100,7 +100,7 @@
 | M3 | API: Handover (chuyển session từ bot → human) | 1d | runtime_session |
 | M4 | Frontend: Live session list (polling hoặc SSE) | 1.5d | M1 |
 | M5 | Frontend: Chat UI trong monitor (admin chat thay Bot) | 2d | M2, W2 |
-| M6 | Frontend: Nút "Tiếp quản", cập nhật flow_step | 1d | M3 |
+| M6 | Frontend: Nút "Tiếp quản", cập nhật lifecycle_state | 1d | M3 |
 | M7 | Gửi thông báo khách: "Nhân viên đang hỗ trợ bạn" | 0.5d | Z3, W2 |
 
 **Deliverable**: Nhân viên xem danh sách session đang chat, click vào xem chi tiết, bấm "Tiếp quản" để chat trực tiếp thay Bot. Khách nhận thông báo khi chuyển sang human.

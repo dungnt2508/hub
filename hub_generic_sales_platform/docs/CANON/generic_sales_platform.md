@@ -1,339 +1,136 @@
-# Generic Sales Platform: Offering-Centric Architecture
+# Nền Tảng Bán Hàng Đa Năng (Generic Sales Platform): Kiến trúc Lấy Sản Phẩm Làm Trung Tâm (Offering-Centric)
 
-## Overview
+## Tổng Quan
 
-**Agentic Sales Platform** không chỉ là một chatbot bán hàng. Đây là một **Generic Sales Platform** được thiết kế để hỗ trợ bất kỳ quy trình chuyển đổi (conversion) nào - từ bán lẻ (retail) đến dịch vụ cao cấp (high-ticket services).
+**Agentic Sales Platform** không chỉ là một con chatbot bán hàng thông thường. Đây là một **Nền tảng Bán hàng Đa năng (Generic Sales Platform)** được thiết kế linh hoạt để hỗ trợ bất kỳ quy trình chuyển đổi (conversion) nào - từ bán lẻ (retail) đơn giản cho đến các dịch vụ giá trị cao (high-ticket services).
 
-### Core Philosophy
+### Triết Lý Cốt Lõi
 
-> **DATA + CONVERSATION = CONVERSION**
+> **DỮ LIỆU (DATA) + HỘI THOẠI (CONVERSATION) = CHUYỂN ĐỔI (CONVERSION)**
 
-Thay vì giới hạn ở mô hình E-commerce truyền thống (Product → Cart → Checkout), hệ thống sử dụng mô hình **Offering-centric** linh hoạt hơn để phục vụ đa ngành.
-
----
-
-## Why "Generic"?
-
-### Traditional E-commerce Limitation
-
-Platforms như Shopify, WooCommerce chỉ tối ưu cho **retail**:
-- Fixed schema: SKU, Inventory, Shipping
-- Linear flow: Browse → Add to Cart → Checkout
-- Static pricing
-- Physical products only
-
-### Generic Sales Platform Advantage
-
-Hỗ trợ **mọi loại offering**:
-- **Physical Products**: Quần áo, điện tử (như E-commerce)
-- **Services**: Khóa học, tư vấn, dịch vụ spa
-- **Assets**: Bất động sản, ô tô
-- **Financial Products**: Gói vay, bảo hiểm
+Thay vì bị giới hạn trong mô hình Thương mại điện tử (E-commerce) truyền thống chỉ biết (Sản phẩm → Thêm vào giỏ → Thanh toán), hệ thống áp dụng mô hình lấy **Đề nghị/Sản phẩm làm trung tâm (Offering-centric)** cực kỳ linh hoạt để phục vụ đa ngành nghề.
 
 ---
 
-## Key Abstractions
+## Tại sao lại gọi là "Đa Năng (Generic)"?
 
-### 1. From "Product" to "Offering"
+### Hạn chế của E-commerce truyền thống
 
-**Traditional Product Model**:
+Các nền tảng như Shopify, WooCommerce chỉ tối ưu cho việc **bán lẻ**:
+- Cấu trúc cố định (Fixed schema): Luôn phải có mã SKU, Tồn kho (Inventory), Phí vận chuyển (Shipping).
+- Luồng đi tuyến tính: Xem hàng → Bỏ giỏ hàng → Thanh toán.
+- Giá cả cố định.
+- Chỉ bán được hàng hóa vật lý.
+
+### Lợi thế của Generic Sales Platform
+
+Hỗ trợ **mọi loại hình sản phẩm (offering)**:
+- **Physical Products (Hàng vật lý)**: Quần áo, đồ điện tử (giống E-commerce).
+- **Services (Dịch vụ)**: Khóa học, tư vấn tài chính, dịch vụ spa làm đẹp.
+- **Assets (Tài sản lớn)**: Bất động sản, ô tô.
+- **Financial Products (Tài chính)**: Gói vay tín chấp, mua bảo hiểm.
+
+---
+
+## Các Tầng Trừu Tượng Hóa Tạo Nên Sự Linh Hoạt (Key Abstractions)
+
+### 1. Phá bỏ quan niệm "Sản phẩm" truyền thống bằng mô hình `Offering`
+
+**Cách thiết kế CŨ (Sẽ bị chết cứng nếu mang đi bán khóa học hay cho vay tiền):**
 ```python
 class Product:
-    sku: str          # Only for physical goods
-    inventory: int    # Doesn't apply to services
-    weight: float     # Irrelevant for digital/financial
+    sku: str          # Phải có mã SKU (Vô nghĩa với dịch vụ)
+    inventory: int    # Phải có tồn kho (Không áp dụng cho bán Khóa học online)
+    weight: float     # Trọng lượng (Vô nghĩa với Hợp đồng tài chính)
 ```
 
-**Offering Model** (Current Implementation):
+**Cách thiết kế MỚI (Của hệ thống hiện tại):**
 ```python
 class TenantOffering:
-    offering_type: str  # "product" | "service" | "asset" | "financial"
-    bot_id: Optional[str]  # Can be tied to specific bot
-    base_attributes: Dict  # Flexible JSONB
+    offering_type: str  # Phân loại: "product" | "service" | "asset" | "financial"
+    base_attributes: Dict  # Flexible JSONB (Chứa bất cứ thuộc tính nào tùy ngành)
     
 class OfferingVersion:
-    attributes: Dict  # Dynamic attributes based on domain
-    pricing_rules: Dict  # Complex pricing logic
+    attributes: Dict  # Thuộc tính động theo từng ngành (Domain)
+    pricing_rules: Dict  # Logic tính giá phức tạp
 ```
 
-**Examples**:
+=> **Điểm linh hoạt ăn tiền:** Hệ thống không quan tâm khách hàng đang bàn về "Cái áo" hay "Hợp đồng Vay 1 tỷ". Bản chất nó đều là một **"Đề nghị (Offering)"** có các **"Thuộc tính (Attributes)"** đi kèm. Vì thế, chỉ việc nạp bộ cấu hình Data (Ontology) mới vào là con Bot sẽ tự hiểu sản phẩm mới mà hoàn toàn không cần sửa Code DB hay file Entity backend.
 
-| Offering Type | Attributes Example |
+**Ví dụ:**
+
+| Loại Offering | Ví dụ Thuộc Tính (Attributes) |
 |---------------|-------------------|
-| **Physical (Laptop)** | `{brand, model, ram, storage, warranty}` |
-| **Service (Khóa học)** | `{instructor, duration, level, schedule}` |
-| **Asset (Nhà)** | `{area, bedrooms, direction, legal_status}` |
-| **Financial (Vay)** | `{interest_rate, term, min_income, max_ltv}` |
+| **Vật lý (Laptop)** | `{brand, model, ram, storage, warranty}` |
+| **Dịch vụ (Khóa học)** | `{instructor, duration, level, schedule}` |
+| **Tài sản (Nhà ở)** | `{area, bedrooms, direction, legal_status}` |
+| **Tài chính (Gói vay)** | `{interest_rate, term, min_income, max_ltv}` |
 
-### 2. From "Cart" to "Context Slots"
+### 2. Trừu tượng hóa "Giỏ hàng" thành `Context Slots`
 
-**Traditional Cart**:
-- Items with quantity
-- One-size-fits-all
+Thường các web E-comerce dùng giỏ hàng (Cart -> Checkout). Điều này rất vô nghĩa với Ngành Bất Động Sản hay Tài chính vì khách không "bỏ cái nhà vào giỏ hàng rồi bấm thanh toán". Thay vào đó, hệ thống lưu mọi thông tin khách hàng cung cấp dưới dạng `RuntimeContextSlot`:
 
-**Context Slots** (Current Implementation):
+**Cấu trúc Context Slots** (khớp `runtime_context_slot`):
 ```python
 class RuntimeContextSlot:
-    slot_key: str      # "budget", "color", "location"
-    slot_value: str    # "5-7 tỷ", "đỏ", "Quận 1"
-    confidence: float  # AI extraction confidence
-    expires_at: datetime  # TTL for relevance
+    key: str           # "màu sắc", "diện tích", "lương tháng"
+    value: str         # "Đỏ", "70m2", "Kỹ sư phần mềm"
+    status: str        # active, overridden, conflict, inferred
+    source: str        # user, system, inferred
+    source_turn_id: str  # Turn trích xuất ra slot này
+# Ghi chú: confidence, expires_at — kế hoạch mở rộng
 ```
 
-**Use Cases**:
+=> **Điểm linh hoạt ăn tiền:** `ContextSlots` hoạt động giống "Trí nhớ ngắn hạn" của con người. Bot cứ tự nhiên túc tắc hỏi chuyện, thu thập các "Slot" (mảnh ghép thông tin) này rồi nhét vào System Prompt của LLM. LLM sẽ nhìn vào các mảnh ghép (Slots) đã gom đủ chưa để ra quyết định xem đã gọi Tool được chưa hay cần chuyển trạng thái (State). Nhờ cái "Trí nhớ" đa năng này, bạn có thể xây tới 100 kịch bản bán hàng (Scenarios) khác nhau dễ dàng.
 
-| Domain | Context Slots |
+**Ví dụ thực tế:**
+
+| Ngành (Domain) | Context Slots (Ngữ cảnh cần lấy) |
 |--------|---------------|
-| **Retail** | color, size, brand_preference |
-| **Real Estate** | budget, location, bedrooms, direction |
-| **Auto** | make, model, year, max_price |
-| **Education** | current_level, goal, schedule_preference |
-| **Finance** | income, credit_score, loan_purpose |
+| **Bán lẻ** | color (màu sắc), size (kích cỡ), brand_preference (thương hiệu) |
+| **Bất động sản** | budget (ngân sách), location (địa điểm), bedrooms (số phòng ngủ) |
+| **Ô tô** | make (hãng), model (dòng xe), year (đời xe), max_price (giá tối đa) |
+| **Giáo dục** | current_level (trình độ), goal (mục tiêu), schedule_preference (lịch học rảnh) |
+| **Tài chính** | income (lương), credit_score (điểm tín dụng), loan_purpose (mục đích vay) |
 
-### 3. From "Checkout" to "Dynamic Flow"
+### 3. Vòng đời giao dịch vạn năng (Lifecycle State Machine)
 
-**Traditional Checkout Flow**:
-```
-View Product → Add to Cart → Fill Shipping → Payment → Done
-```
+Kịch bản Bán Hàng giờ đây được biến thành một Cỗ máy trạng thái (StateMachine): `IDLE` -> `BROWSING` -> `VIEWING` -> `COMPARING` -> `ANALYZING` -> `PURCHASING`.
 
-**Dynamic Lifecycle States** (Current Implementation):
+*   **Bán Rẻ đắt (Giày dép):** Đi thẳng từ `BROWSING` (Tư vấn size) nhảy vọt qua `PURCHASING` (Mua luôn). Bỏ qua `ANALYZING`.
+*   **Bán tỷ đô (Vay ngân hàng):** Bắt đầu `IDLE` -> Đứng rất lâu ở `ANALYZING` (Tính lãi suất trả góp, check nợ xấu) -> Rồi mới sang `VIEWING` (Khuyên dùng Gói 1) -> `PURCHASING` (Chốt sales tạo hồ sơ).
+
+**Các Trạng thái Động (Dynamic Lifecycle States)**:
+
+> **Nguồn chân lý duy nhất**: `app/core/domain/runtime.py`
+
 ```python
 class LifecycleState(str, Enum):
-    IDLE = "idle"
-    BROWSING = "browsing"
-    VIEWING = "viewing"
-    COMPARING = "comparing"
-    ANALYZING = "analyzing"  # For financial/market analysis
-    PURCHASING = "purchasing"
-    CLOSED = "closed"
+    IDLE = "idle"           # Chờ/Nhàn rỗi
+    BROWSING = "browsing"   # Duyệt chung (tương tác tìm kiếm)
+    SEARCHING = "searching" # Đang tìm kiếm tích cực
+    FILTERING = "filtering" # Thu hẹp/lọc kết quả
+    VIEWING = "viewing"     # Bấm xem thông tin chi tiết
+    COMPARING = "comparing" # So sánh sản phẩm
+    ANALYZING = "analyzing" # Phân tích chuyên sâu (vd: tài chính/thị trường)
+    PURCHASING = "purchasing" # Thực hiện lệnh Mua/Chốt đơn
+    COMPLETED = "completed"  # Phiên hoàn tất thành công
+    CLOSED = "closed"       # Kết thúc phiên
+    HANDOVER = "handover"   # Nhân viên con người đã tiếp quản
+    ERROR = "error"         # Lỗi xử lý
+    WAITING_INPUT = "waiting_input"  # Đợi thông tin từ khách
 ```
 
-**Domain-Specific Flows**:
+=> **Điểm linh hoạt ăn tiền:** Hệ thống biết cách "Khóa cò" Bot (Guardrails). Ví dụ khi đang ở trạng thái `BROWSING`, Bot chỉ được phép gọi nhóm tool `Search` hoặc `View Details`. Khi chuyển hẳn sang `ANALYZING`, Bot mới được thả cho phép gọi tool `credit_scoring()`. Sự phân luồng State này giúp Agentic không bị "ngu" và hành xử phi logic (Ví dụ: Khách mới vô bảo chào buổi sáng thì nó đòi lấy thông tin thu nhập để chốt gói Vay).
 
-**Retail**:
-```
-IDLE → BROWSING (search) → VIEWING (details) → PURCHASING (checkout)
-```
+### 4. Gắn kết Tool / Skill Plugin thay vì rập khuôn (Plugin Architecture)
 
-**Real Estate**:
-```
-IDLE → BROWSING (search properties) → VIEWING (details) 
-     → ANALYZING (mortgage calculation) → PURCHASING (schedule visit)
-```
+Hệ thống Core (Agentic Reasoning) hoàn toàn không biết ngành nghề kinh doanh là gì. Bạn định hình nghiệp vụ bằng cách cắm thêm các Tool (Kỹ năng).
 
-**Finance**:
-```
-IDLE → ANALYZING (credit check) → VIEWING (loan options) 
-     → PURCHASING (submit application)
-```
-
-**Education**:
-```
-IDLE → BROWSING (course catalog) → VIEWING (course details) 
-     → ANALYZING (placement test) → PURCHASING (enrollment)
-```
-
----
-
-## Implementation in Current System
-
-### 1. Database Schema
-
-**Offering Table**:
-```sql
-CREATE TABLE tenant_offering (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    bot_id UUID,  -- NEW: Can scope offering to specific bot
-    code VARCHAR(100) UNIQUE,
-    offering_type VARCHAR(50),
-    base_attributes JSONB  -- Flexible structure
-);
-```
-
-**Domain-Agnostic Attributes**:
-```sql
-CREATE TABLE offering_attribute_value (
-    offering_id UUID,
-    attribute_key VARCHAR(100),  -- "bedrooms", "interest_rate", etc.
-    attribute_value TEXT,
-    attribute_type VARCHAR(50)   -- "string", "number", "range"
-);
-```
-
-### 2. Tool System
-
-Tools are **domain-aware** but use generic operations:
-
-**Generic Tools** (work for all domains):
-- `search_offerings(query)` - Semantic search
-- `get_offering_details(offering_id)` - Get full details
-- `compare_offerings(offering_ids)` - Side-by-side comparison
-
-**Domain-Specific Tools**:
-- **Financial**: `get_market_data()`, `credit_scoring()`
-- **Auto**: `trade_in_valuation(make, model, year)`
-- **Education**: `assessment_test(subject)`
-- **Integration**: `trigger_web_hook(action)` - Connect to external CRM/PMS
-
-### 3. Customization Points
-
-**Per-Domain Configuration**:
+Nhờ cơ chế Decorator Register Tool (`agent_tool_registry.py`), Agent như một người lính được khoác "Áo giáp" (Skill) linh hoạt:
 
 ```python
-# In TenantDomain table
-domain_config = {
-    "ontology": {
-        "attributes": ["bedrooms", "area", "direction", "price"],
-        "required": ["bedrooms", "price"],
-        "facets": ["location", "price_range"]
-    },
-    "flow_config": {
-        "default_state": "idle",
-        "allows_comparison": True,
-        "requires_analysis": True  # Enable mortgage calculator
-    },
-    "pricing_rules": {
-        "type": "negotiable",  # vs "fixed"
-        "show_range": True
-    }
-}
-```
-
----
-
-## Target Markets
-
-### 1. High-Ticket Sales (SME)
-
-**Industries**:
-- Bất động sản (Real Estate)
-- Ô tô (Automotive)
-- Bảo hiểm (Insurance)
-- Giáo dục cao cấp (Premium Education)
-- Thẩm mỹ viện (Medical Spa)
-
-**Pain Points**:
-- Shopify/WooCommerce không phù hợp (không có "Đặt lịch tư vấn")
-- Cần qualify leads 24/7
-- Flow phức tạp: Chat → Appointment → Site Visit → Contract
-
-**Why They Pay**:
-- 1 Lead = vài triệu → vài trăm triệu VND
-- Automation tăng conversion rate = ROI cao
-- Generic platform = không cần custom development
-
-### 2. Multi-Channel Chains (Enterprise)
-
-**Industries**:
-- Chuỗi F&B (Coffee chains, Restaurants)
-- Chuỗi bán lẻ (Fashion, Pharmacy)
-
-**Pain Points**:
-- Cần quản lý tập trung (Omnichannel)
-- Muốn sở hữu data (không phụ thuộc marketplace)
-- Inventory sync across channels
-
-**Why They Pay**:
-- Multi-tenant architecture
-- Unified view: Web + Zalo + Facebook
-- Data ownership
-
-### 3. Agencies (Whitelabel Partners)
-
-**Target**:
-- Marketing agencies
-- Software houses
-
-**Business Model**:
-- Thuê platform core từ chúng ta
-- Config cho từng client (e.g., Lan Đột Biến shop, Gara ô tô)
-- Bán như giải pháp custom
-
-**Why They Pay**:
-- Outsource core AI engine
-- Focus on vertical domain expertise
-- Faster time-to-market
-
----
-
-## Example Scenarios
-
-### Retail (Traditional E-commerce)
-
-**User**: "Tôi muốn mua laptop cho design"
-
-**Flow**:
-1. `search_offerings(query="laptop design")` → List offerings
-2. User: "Cái thứ 2"
-3. `get_offering_details(offering_id=...)` → Show specs
-4. User: "Có màu xám không?"
-5. Check variants → "Có, giá 25tr"
-6. User: "Đặt luôn"
-7. State → PURCHASING → Trigger webhook to payment gateway
-
-### Real Estate
-
-**User**: "Tôi cần căn 3PN ở Quận 1, ngân sách 7 tỷ"
-
-**Context Extraction**:
-- `bedrooms = 3`
-- `location = Quận 1`
-- `budget = 7000000000`
-
-**Flow**:
-1. `search_offerings(query="căn hộ", bedrooms=3, location="Quận 1")` → 5 results
-2. User: "Căn đầu tiên view như thế nào?"
-3. `get_offering_details(id=...)` → Show images, direction, legal status
-4. User: "Tính vay giúp tôi"
-5. State → ANALYZING → `get_market_data()` → Show mortgage calculation
-6. User: "Đặt lịch xem nhà"
-7. `trigger_web_hook(action="schedule_visit")` → CRM integration
-
-### Finance (Loan Application)
-
-**User**: "Tôi muốn vay 100 triệu"
-
-**Flow**:
-1. Extract context: `loan_amount = 100000000`
-2. State → ANALYZING → `credit_scoring()` → Check eligibility
-3. `search_offerings(type="loan", amount=100tr)` → Show loan packages
-4. User: "Gói lãi suất 8%/năm"
-5. `get_offering_details(id=...)` → Show terms, requirements
-6. User: "Nộp hồ sơ luôn"
-7. `trigger_web_hook(action="submit_application")` → Bank API integration
-
-### Education (Course Enrollment)
-
-**User**: "Con tôi học lớp 5, muốn học tiếng Anh"
-
-**Flow**:
-1. Extract: `grade = 5`, `subject = English`
-2. State → ANALYZING → `assessment_test(subject="English")` → Online test
-3. Test result → "Con bạn ở level Pre-Intermediate"
-4. `search_offerings(level="Pre-Int", grade=5)` → Show courses
-5. User: "Khóa thứ 2 học buổi nào?"
-6. `get_offering_details(id=...)` → Schedule, instructor, syllabus
-7. User: "Đăng ký thử 1 buổi"
-8. State → PURCHASING → `trigger_web_hook(action="trial_booking")`
-
----
-
-## Technical Benefits
-
-### 1. No Code Changes for New Domains
-
-**Adding a new domain** (e.g., Travel Tours):
-1. Create `TenantDomain` with ontology config
-2. Define attributes in `DomainAttribute` table
-3. Upload offerings via Migration Hub
-4. **Done** - No backend code changes needed
-
-### 2. Extensibility via Tools
-
-New domain needs special logic? Add new tool:
-```python
+# Bất cứ khi nào cần nhận làm ngành mới, chỉ cần DEV THÊM 1 HÀM MỚI TÁCH BIỆT:
 @agent_tools.register_tool(
     name="calculate_tour_feasibility",
     capability="tour_planning"
@@ -343,34 +140,86 @@ async def calculate_tour_feasibility(
     group_size: int,
     **kwargs
 ):
-    # Domain-specific logic
+    # Logic tính toán của riêng mảng Du Lịch
     return {...}
 ```
 
-### 3. Unified Analytics
-
-All domains share same metrics:
-- Conversation → Conversion rate
-- Average handling time
-- Token cost per session
-- Revenue per session
+=> **Điểm linh hoạt ăn tiền:** File điều phối trung tâm (`hybrid_orchestrator.py`) hoàn toàn không bị phình to. Khi bạn onboard một khách hàng mới làm mảng Spa làm đẹp, bạn chỉ việc lập trình thêm 1 Tool tên là `check_booking_slot` và "cắm" (Plug) nó vào hệ thống đăng ký là xong. Luồng suy nghĩ của AI (Core Reasoning) không hề suy suyển.
 
 ---
 
-## Future Enhancements
-
-1. **Auto-Ontology Extraction**: AI analyzes competitor websites → auto-generate domain config
-2. **Dynamic Pricing Engine**: ML-based price optimization per channel
-3. **Multi-Language Support**: Same offering, different languages
-4. **Marketplace Mode**: Allow multiple tenants to list offerings in shared catalog
+**Tóm lại**, hệ thống này CỰC KỲ LINH HOẠT vì nó tuân thủ triệt để nguyên tắc **Tách biệt Dữ liệu (TenantData/Ontology) ra khỏi Phần Trí Tuệ (Core Agentic Reasoning)**. Bạn đang xây một *"Bộ não nhân tạo bán hàng"* đạt chuẩn, chỉ cần cắm chiếc "USB" chứa Dữ liệu của Ngành nào vào, bộ não đó sẽ tự khắc biến thành Chuyên gia của riêng ngành đó mà không cần đập đi xây lại Backend.
 
 ---
 
-**Document Status**: Reflects current implementation  
-**Last Updated**: February 2026
+## Chi tiết Triển Khai Trong Hệ Thống Hiện Tại
 
-**Related Docs**:
-- [Scenarios: Real Estate](scenariosigh_ticket_real_estate.md)
-- [Scenarios: Finance](scenariosinance_unsecured_loan.md)
-- [Scenarios: Education](scenariosducation_admissions.md)
-- [Scenarios: Auto Sales](scenariossed_car_sales.md)
+### Cơ Sở Dữ Liệu (Database Schema)
+
+**Bảng Product cốt lõi (Offering Table)**:
+```sql
+CREATE TABLE tenant_offering (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    bot_id UUID,  -- Gán chặt loại "hàng hóa" đó cho Bot nhất định quản lý
+    code VARCHAR(100) UNIQUE,
+    offering_type VARCHAR(50),  -- 'product', 'service', v.v
+    base_attributes JSONB  -- Nhét mọi thông tin động vào đây
+);
+```
+
+**Bảng Thuộc Tính (Domain-Agnostic Attributes)**:
+```sql
+CREATE TABLE offering_attribute_value (
+    offering_id UUID,
+    attribute_key VARCHAR(100),  -- Giá trị như: "bedrooms", "interest_rate"
+    attribute_value TEXT,
+    attribute_type VARCHAR(50)   -- Định dạng: "string", "number", "range"
+);
+```
+
+### Điểm Tùy Chỉnh Theo Ngành (Customization Points)
+
+Ví dụ mô phỏng file cấu hình JSON cho một Tenant ngành nghề cụ thể:
+
+```python
+# Lưu trong bảng TenantDomain
+domain_config = {
+    "ontology": {
+        "attributes": ["bedrooms", "area", "direction", "price"],
+        "required": ["bedrooms", "price"],
+        "facets": ["location", "price_range"]
+    },
+    "flow_config": {
+        "default_state": "idle",
+        "allows_comparison": True,
+        "requires_analysis": True  # Kích hoạt bắt buộc phải qua tính máy tính vay mua nhà
+    },
+    "pricing_rules": {
+        "type": "negotiable",  # Mua nhà thì có thể thương lượng giá (ngược lại với fixed)
+        "show_range": True
+    }
+}
+```
+
+---
+
+## Chiến Lược Thương Mại / Khách Hàng Mục Tiêu
+
+### 1. Bán hàng Giá Trị Cao (High-Ticket Sales)
+**Ngành**: Bất động sản, Ô tô, Bảo hiểm, Thẩm mỹ viện, Phòng khám.
+**Nỗi đau**: Khách cần tư vấn (Qualify) 24/7. Họ không bỏ cái nhà vào giỏ hàng Shopify được. Cần quy trình Chat → Đặt lịch hẹn → Cọc.
+**Lý do họ Mua**: Tự động hóa Agentic giúp chốt sale tốt hơn. 1 Lead (đơn) trị giá rất lớn, doanh nghiệp sẵn sàng chịu chi mảng SaaS này.
+
+### 2. Chuỗi Doanh Nghiệp (Multi-Channel Enterprise)
+**Ngành**: Chuỗi F&B, Thời trang, Nhượng quyền.
+**Nỗi đau**: Muốn giữ data khách hàng, không muốn làm phụ thuộc sàn thương mại điện tử.
+**Lý do họ Mua**: Multi-tenant cho phép quản lý tồn kho linh hoạt (Omnichannel) vừa web vừa Zalo trên cùng 1 con bot quản lý tập trung.
+
+### 3. Đối tác Đại lý (Whitelabel Agencies)
+**Đối tượng**: Marketing agencies, Software houses.
+**Lý do họ Mua**: Họ thuê cái lõi "Generic Backend" này của bạn. Sau đó họ tự về cấu hình config ontology (xe hơi, trái cây, shop thú cưng...) rồi đẩy đi bán tiếp cho khách hàng của họ, làm giảm hẳn chi phí phải thuê team dev viết lại code backend AI.
+
+---
+**Trạng thái Tài liệu**: Phản ánh kiến trúc triển khai hiện tại.
+**Cập nhật lần cuối**: Tháng 02/2026.

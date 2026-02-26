@@ -1,42 +1,59 @@
-# Plan: Frontend Experience 2026 (Premium & Commercial)
+# Kế Hoạch Trải Nghiệm Frontend 2026 (Premium & Commercial)
 
-Để tạo ra một sản phẩm chatbot thương mại đẳng cấp năm 2026, Frontend không chỉ là "đẹp" mà phải mang lại cảm giác **AI-Native** (Sinh ra cho AI).
+Để tạo sản phẩm chatbot thương mại đẳng cấp năm 2026, Frontend không chỉ "đẹp" mà phải mang cảm giác **AI-Native** (Sinh ra cho AI).
 
-## 1. Triết lý Thiết kế (Design Language)
+=> **Điểm linh hoạt ăn tiền:** Khi Bot so sánh sản phẩm, thay vì chỉ text dài, nó render **Bento Grid** hoặc **Comparison Table** tương tác. User thấy rõ kết quả, không cần scroll qua đoạn văn.
 
--   **Generative UI (G-UI)**: Giao diện không cố định. Khi Bot so sánh sản phẩm, thay vì chỉ hiện text, nó sẽ tự động render một **Bento Grid** hoặc **Comparison Table** có tính tương tác cao.
--   **Glassmorphism 2.0**: Sử dụng các lớp nền mờ đục (translucent) kết hợp với đổ bóng sâu, tạo cảm giác không gian đa chiều.
--   **Micro-interactions**: AI "suy nghĩ" thông qua các hiệu ứng sóng (ripple) hoặc gradient chuyển động nhẹ nhàng, giúp User cảm thấy bớt nặng nề khi chờ đợi LLM.
+---
 
-## 2. Các thành phần chủ đạo
+## 1. Triết Lý Thiết Kế
+
+- **Generative UI (G-UI):** Giao diện không cố định. Bot so sánh → render Bento Grid hoặc Comparison Table tương tác.
+- **Glassmorphism 2.0:** Nền mờ đục (translucent) + đổ bóng sâu, cảm giác không gian đa chiều.
+- **Micro-interactions:** AI "suy nghĩ" qua hiệu ứng sóng (ripple), gradient chuyển động - User bớt nặng nề khi chờ LLM.
+
+---
+
+## 2. Thành Phần Chủ Đạo
 
 ### Chat Widget (User-facing)
--   **Floating Bubbles**: Thiết kế không viền, tập trung vào nội dung.
--   **Interactive Cards**: Các thẻ sản phẩm có nút "Thêm vào giỏ hàng" hoặc "Xem chi tiết" tích hợp trực tiếp trong dòng chat.
--   **Voice-First Integration**: Sẵn sàng cho giao tiếp bằng giọng nói với hiệu ứng sóng âm đẹp mắt.
+- **Floating Bubbles:** Không viền, tập trung nội dung
+- **Interactive Cards:** Thẻ sản phẩm có nút "Thêm giỏ", "Xem chi tiết" trong dòng chat
+- **Voice-First:** Sẵn sàng giao tiếp giọng nói, sóng âm đẹp
 
 ### Admin Dashboard (Commercial-ready)
--   **Observability Matrix**: Hiển thị luồng suy nghĩ của Agent (Decision Tree) dưới dạng sơ đồ trực quan.
--   **Cost-per-Session Tracking**: Biểu đồ chi phí token theo từng phiên chat để admin kiểm soát hiệu quả kinh doanh.
--   **Live Playground**: Nơi tinh chỉnh Prompt và Test Tool ngay lập tức.
+- **Observability Matrix:** Luồng suy nghĩ Agent (Decision Tree) dạng sơ đồ
+- **Cost-per-Session:** Biểu đồ chi phí token theo phiên - admin kiểm soát ROI
+- **Live Playground:** Tinh chỉnh Prompt, test Tool ngay lập tức
 
-## 3. Tech Stack Khuyến nghị (2026 Standard)
+---
 
--   **Framework**: Next.js 16+ (App Router, Server Components).
--   **Styling**: TailwindCSS 4+ hoặc CSS Variables (Native) để tối ưu tốc độ.
--   **Animations**: Framer Motion kết hợp với Rive (cho các micro-animations vector nhẹ).
--   **State Management**: Zustand hoặc React Query (TanStack) để đồng bộ dữ liệu realtime.
+## 3. Tech Stack Khuyến Nghị (2026)
 
-## 4. Trạng thái Triển khai (Implemented Components)
+| Thành phần | Công nghệ |
+|------------|-----------|
+| **Framework** | Next.js 16+ (App Router, Server Components) |
+| **Styling** | TailwindCSS 4+ hoặc CSS Variables |
+| **Animations** | Framer Motion, Rive (micro-animations vector) |
+| **State** | Zustand, React Query |
+
+---
+
+## 4. Trạng Thái Triển Khai
 
 ### Core UI & Design System
--   [x] **Design System**: Đã thiết kế hệ thống màu sắc, Typography và Glassmorphism (Vanilla CSS + Tailwind).
--   [x] **Chat Engine**: Đã triển khai `ChatWidget` và `ChatMessage` hỗ trợ Markdown và Code Highlight.
+- [x] **Design System:** Màu sắc, Typography, Glassmorphism (Vanilla CSS + Tailwind)
+- [x] **Chat Engine:** `ChatWidget`, `ChatMessage` (Markdown, Code Highlight)
 
 ### Generative UI (G-UI)
--   [x] **Bento Grid**: Component `BentoGrid.tsx` dùng để hiển thị danh sách sản phẩm hoặc so sánh sản phẩm theo phong cách hiện đại.
--   [x] **Interactive Cards**: Tích hợp trực tiếp trong luồng chat thông qua `ui_metadata`.
+- [x] **Bento Grid:** `BentoGrid.tsx` - danh sách/s so sánh sản phẩm
+- [x] **Interactive Cards:** Tích hợp trong chat qua `ui_metadata`
 
 ### Admin Dashboard
--   [x] **Decision Visualizer**: Component `DecisionVisualizer.tsx` trực quan hóa luồng suy nghĩ của AI (Decision Tree).
--   [x] **Cost Analytics**: Component `CostAnalytics.tsx` theo dõi chi phí Token và Latency theo thời gian thực.
+- [x] **Decision Visualizer:** `DecisionVisualizer.tsx` - luồng suy nghĩ AI
+- [x] **Cost Analytics:** `CostAnalytics.tsx` - Token, Latency realtime
+
+---
+
+**Trạng thái Tài liệu**: Phản ánh triển khai hiện tại.
+**Cập nhật lần cuối**: Tháng 02/2026.
